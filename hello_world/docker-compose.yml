@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: robot_mongodb
+    ports:
+      - "27015:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  init:
+    build: .
+    container_name: robot_init
+    depends_on:
+      - mongodb
+    command: >
+      sh -c "sleep 5 && python init_robots.py"
+
+volumes:
+  mongo_data:
