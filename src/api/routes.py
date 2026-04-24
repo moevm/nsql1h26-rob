@@ -662,3 +662,138 @@ def delete_task(doc_id):
     res = _coll("tasks").delete_one({"_id": oid_or_400(doc_id)})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.get("/api/events", tags=["entities"])
+def list_events(
+    skip=Query(0, ge=0),
+    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    event_type=Query(None, alias="type"),
+    message=Query(None),
+    description=Query(None),
+    robot_id=Query(None, alias="robotId"),
+    task_id=Query(None, alias="taskId"),
+    grid_fs_file_id=Query(None, alias="gridFsFileId"),
+    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
+    timestamp_after=Query(None, alias="timestampAfter"),
+    timestamp_before=Query(None, alias="timestampBefore"),
+):
+    parts = []
+    if event_type:
+        parts.append({"type": event_type})
+    for c in (icontains("message", message), icontains("description", description)):
+        if c:
+            parts.append(c)
+    if doc_id and doc_id.strip():
+        parts.append({"_id": oid_or_400(doc_id.strip())})
+    if robot_id:
+        parts.append({"robotId": oid_or_400(robot_id)})
+    if task_id:
+        parts.append({"taskId": oid_or_400(task_id)})
+    if grid_fs_file_id and grid_fs_file_id.strip():
+        parts.append({"gridFsFileId": oid_or_400(grid_fs_file_id.strip())})
+    ta, tb = parse_dt(timestamp_after), parse_dt(timestamp_before)
+    if ta:
+        parts.append({"timestamp": {"$gte": ta}})
+    if tb:
+        parts.append({"timestamp": {"$lte": tb}})
+    filt = {"$and": parts} if parts else {}
+    cur = _coll("events").find(filt).sort("timestamp", ASCENDING).skip(skip).limit(limit)
+    return [doc_to_jsonable(d) for d in cur]
+
+
+@router.get("/api/events/{doc_id}", tags=["entities"])
+def get_event(doc_id):
+    doc = _coll("events").find_one({"_id": oid_or_400(doc_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return doc_to_jsonable(doc)
+
+
+@router.post("/api/events", status_code=201, tags=["entities"])
+def create_event(body=Body(...)):
+    raw = body_to_bson(body)
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Body must be an object")
+    for req in ("type", "timestamp"):
+        if req not in raw:
+            raise HTTPException(status_code=400, detail=f"{req} is required")
+    rid = raw.get("robotId")
+    if rid in ("", None):
+        rid = None
+    elif isinstance(rid, str):
+        rid = oid_or_400(rid)
+    if rid is not None:
+        robot = _coll("robots").find_one({"_id": rid})
+        if not robot:
+            raise HTTPException(status_code=400, detail="robotId not found")
+    doc = dict(raw)
+    doc.pop("_id", None)
+    doc["robotId"] = rid
+    if "message" in doc:
+        msg = doc.get("message")
+        if msg is None:
+            doc["message"] = None
+        else:
+            m = str(msg).strip()
+            doc["message"] = m or None
+    if doc.get("taskId") and isinstance(doc["taskId"], str):
+        doc["taskId"] = oid_or_400(doc["taskId"])
+    if doc.get("gridFsFileId") and isinstance(doc["gridFsFileId"], str):
+        doc["gridFsFileId"] = oid_or_400(doc["gridFsFileId"])
+    if isinstance(doc.get("timestamp"), str):
+        doc["timestamp"] = parse_dt(doc["timestamp"])
+    try:
+        res = _coll("events").insert_one(doc)
+    except OperationFailure as e:
+        raise mongo_validation_error(e) from e
+    doc["_id"] = res.inserted_id
+    return doc_to_jsonable(doc)
+
+
+@router.patch("/api/events/{doc_id}", tags=["entities"])
+def patch_event(doc_id, body=Body(...)):
+    _id = oid_or_400(doc_id)
+    existing = _coll("events").find_one({"_id": _id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Not found")
+    raw = body_to_bson(body)
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Body must be an object")
+    patch = {k: v for k, v in raw.items() if k != "_id"}
+    if "message" in patch:
+        msg = patch.get("message")
+        if msg is None:
+            patch["message"] = None
+        else:
+            m = str(msg).strip()
+            patch["message"] = m or None
+    if "robotId" in patch:
+        rid = patch["robotId"]
+        if isinstance(rid, str):
+            patch["robotId"] = oid_or_400(rid)
+        if not _coll("robots").find_one({"_id": patch["robotId"]}):
+            raise HTTPException(status_code=400, detail="robotId not found")
+    if patch.get("taskId") and isinstance(patch["taskId"], str):
+        patch["taskId"] = oid_or_400(patch["taskId"])
+    if "gridFsFileId" in patch:
+        if patch["gridFsFileId"] is None or patch["gridFsFileId"] == "":
+            patch["gridFsFileId"] = None
+        elif isinstance(patch["gridFsFileId"], str):
+            patch["gridFsFileId"] = oid_or_400(patch["gridFsFileId"])
+    if "timestamp" in patch and isinstance(patch["timestamp"], str):
+        patch["timestamp"] = parse_dt(patch["timestamp"])
+    merged = {**existing, **patch}
+    merged["_id"] = _id
+    try:
+        _coll("events").replace_one({"_id": _id}, merged)
+    except OperationFailure as e:
+        raise mongo_validation_error(e) from e
+    return doc_to_jsonable(_coll("events").find_one({"_id": _id}))
+
+
+@router.delete("/api/events/{doc_id}", status_code=204, tags=["entities"])
+def delete_event(doc_id):
+    res = _coll("events").delete_one({"_id": oid_or_400(doc_id)})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
