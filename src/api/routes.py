@@ -1,9 +1,12 @@
 import re
+import mimetypes
 from datetime import datetime
 
 from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pymongo import ASCENDING
-from pymongo.errors import OperationFailure
+from pymongo import DESCENDING
+from pymongo.errors import DuplicateKeyError, OperationFailure
 
 from src.api.mongo_http import (
     body_to_bson,
@@ -25,6 +28,10 @@ _DEFAULT_LIMIT = 200
 
 def _coll(name):
     return get_db()[name]
+
+
+def _files_coll():
+    return get_db().fs.files
 
 
 @router.post("/api/auth/login", tags=["auth"])
@@ -797,3 +804,209 @@ def delete_event(doc_id):
     res = _coll("events").delete_one({"_id": oid_or_400(doc_id)})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.get("/api/obstacles", tags=["entities"])
+def list_obstacles(
+    skip=Query(0, ge=0),
+    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    name=Query(None),
+    active=Query(None),
+    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
+    min_x_gte=Query(None, alias="minXGte"),
+    max_x_lte=Query(None, alias="maxXLte"),
+    min_y_gte=Query(None, alias="minYGte"),
+    max_y_lte=Query(None, alias="maxYLte"),
+    created_after=Query(None),
+    created_before=Query(None),
+    updated_after=Query(None),
+    updated_before=Query(None),
+):
+    parts = []
+    if doc_id and doc_id.strip():
+        parts.append({"_id": oid_or_400(doc_id.strip())})
+    c = icontains("name", name)
+    if c:
+        parts.append(c)
+    if active is not None:
+        parts.append({"active": active})
+    if min_x_gte is not None:
+        parts.append({"minX": {"$gte": min_x_gte}})
+    if max_x_lte is not None:
+        parts.append({"maxX": {"$lte": max_x_lte}})
+    if min_y_gte is not None:
+        parts.append({"minY": {"$gte": min_y_gte}})
+    if max_y_lte is not None:
+        parts.append({"maxY": {"$lte": max_y_lte}})
+    ca, cb = parse_dt(created_after), parse_dt(created_before)
+    if ca:
+        parts.append({"createdAt": {"$gte": ca}})
+    if cb:
+        parts.append({"createdAt": {"$lte": cb}})
+    ua, ub = parse_dt(updated_after), parse_dt(updated_before)
+    if ua:
+        parts.append({"updatedAt": {"$gte": ua}})
+    if ub:
+        parts.append({"updatedAt": {"$lte": ub}})
+    filt = {"$and": parts} if parts else {}
+    cur = _coll("obstacles").find(filt).sort("createdAt", ASCENDING).skip(skip).limit(limit)
+    return [doc_to_jsonable(d) for d in cur]
+
+
+@router.get("/api/obstacles/{doc_id}", tags=["entities"])
+def get_obstacle(doc_id):
+    doc = _coll("obstacles").find_one({"_id": oid_or_400(doc_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return doc_to_jsonable(doc)
+
+
+@router.post("/api/obstacles", status_code=201, tags=["entities"])
+def create_obstacle(body=Body(...)):
+    raw = body_to_bson(body)
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Body must be an object")
+    for req in ("points",):
+        if req not in raw:
+            raise HTTPException(status_code=400, detail=f"{req} is required")
+    name = str(raw.get("name") or "").strip()
+    now = utcnow()
+    points = raw.get("points") or []
+    if not isinstance(points, list) or not points:
+        raise HTTPException(status_code=400, detail="points must be a non-empty array")
+    xs = []
+    ys = []
+    for item in points:
+        if not isinstance(item, list) or len(item) != 2:
+            raise HTTPException(status_code=400, detail="points items must be [x,y]")
+        x, y = item[0], item[1]
+        if isinstance(x, bool) or isinstance(y, bool):
+            raise HTTPException(status_code=400, detail="points must be ints")
+        if not isinstance(x, int) or not isinstance(y, int):
+            if isinstance(x, float) and x.is_integer():
+                x = int(x)
+            if isinstance(y, float) and y.is_integer():
+                y = int(y)
+        if not isinstance(x, int) or not isinstance(y, int):
+            raise HTTPException(status_code=400, detail="points must be ints")
+        xs.append(x)
+        ys.append(y)
+    min_x = min(xs)
+    max_x = max(xs)
+    min_y = min(ys)
+    max_y = max(ys)
+    if not name:
+        name = "Obstacle"
+    doc = {
+        "name": name,
+        "points": points,
+        "minX": min_x,
+        "maxX": max_x,
+        "minY": min_y,
+        "maxY": max_y,
+        "active": raw.get("active", True),
+        "createdAt": raw.get("createdAt") or now,
+        "updatedAt": raw.get("updatedAt") or now,
+    }
+    for key in ("createdAt", "updatedAt"):
+        if isinstance(doc[key], str):
+            doc[key] = parse_dt(doc[key])
+    try:
+        res = _coll("obstacles").insert_one(doc)
+    except (OperationFailure, DuplicateKeyError) as e:
+        raise mongo_validation_error(e) from e
+    doc["_id"] = res.inserted_id
+    return doc_to_jsonable(doc)
+
+
+@router.patch("/api/obstacles/{doc_id}", tags=["entities"])
+def patch_obstacle(doc_id, body=Body(...)):
+    _id = oid_or_400(doc_id)
+    existing = _coll("obstacles").find_one({"_id": _id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Not found")
+    raw = body_to_bson(body)
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Body must be an object")
+    patch = {k: v for k, v in raw.items() if k != "_id"}
+    if "name" in patch and not str(patch.get("name") or "").strip():
+        raise HTTPException(status_code=400, detail="name is required")
+    for key in ("createdAt", "updatedAt"):
+        if key in patch and isinstance(patch[key], str):
+            patch[key] = parse_dt(patch[key])
+    patch.setdefault("updatedAt", utcnow())
+    merged = {**existing, **patch}
+    merged["_id"] = _id
+    try:
+        _coll("obstacles").replace_one({"_id": _id}, merged)
+    except OperationFailure as e:
+        raise mongo_validation_error(e) from e
+    return doc_to_jsonable(_coll("obstacles").find_one({"_id": _id}))
+
+
+@router.delete("/api/obstacles/{doc_id}", status_code=204, tags=["entities"])
+def delete_obstacle(doc_id):
+    res = _coll("obstacles").delete_one({"_id": oid_or_400(doc_id)})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.get("/api/gridfs/files", tags=["gridfs"])
+def list_gridfs_files(
+    skip=Query(0, ge=0),
+    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    filename=Query(None, description="Substring in filename (case-insensitive)"),
+    doc_id=Query(None, alias="docId", description="Exact fs.files _id"),
+    upload_after=Query(None),
+    upload_before=Query(None),
+):
+    q = {"$and": []}
+    if doc_id and doc_id.strip():
+        q["$and"].append({"_id": oid_or_400(doc_id.strip())})
+    if filename and filename.strip():
+        q["$and"].append({"filename": {"$regex": re.escape(filename.strip()), "$options": "i"}})
+    ua, ub = parse_dt(upload_after), parse_dt(upload_before)
+    if ua:
+        q["$and"].append({"uploadDate": {"$gte": ua}})
+    if ub:
+        q["$and"].append({"uploadDate": {"$lte": ub}})
+    if not q["$and"]:
+        del q["$and"]
+        filt = {}
+    else:
+        filt = q
+    cur = _files_coll().find(filt).sort("uploadDate", DESCENDING).skip(skip).limit(limit)
+    return [doc_to_jsonable(d) for d in cur]
+
+
+@router.get("/api/gridfs/files/{file_id}/download", tags=["gridfs"])
+def download_gridfs_file(file_id):
+    from gridfs import GridFSBucket
+    from gridfs.errors import NoFile
+
+    db = get_db()
+    _id = oid_or_400(file_id)
+    bucket = GridFSBucket(db)
+    try:
+        grid_out = bucket.open_download_stream(_id)
+    except NoFile:
+        raise HTTPException(status_code=404, detail="File not found") from None
+
+    fname = grid_out.filename or "file"
+    meta = grid_out.metadata or {}
+    ct = meta.get("contentType") or mimetypes.guess_type(fname)[0] or "application/octet-stream"
+
+    def chunks():
+        chunk_size = 256 * 1024
+        while True:
+            data = grid_out.read(chunk_size)
+            if not data:
+                break
+            yield data
+
+    safe = fname.replace('"', "_")
+    return StreamingResponse(
+        chunks(),
+        media_type=ct,
+        headers={"Content-Disposition": f'inline; filename="{safe}"'},
+    )
