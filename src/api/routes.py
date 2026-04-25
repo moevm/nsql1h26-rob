@@ -4,19 +4,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pymongo import ASCENDING
-from pymongo import DESCENDING
+from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
-from src.api.mongo_http import (
-    body_to_bson,
-    doc_to_jsonable,
-    icontains,
-    mongo_validation_error,
-    oid_or_400,
-    parse_dt,
-    utcnow,
-)
+from src.api.mongo_http import body_to_bson, doc_to_jsonable, icontains, mongo_validation_error, oid_or_400, parse_dt, utcnow
 from src.api.auth import authenticate, issue_token
 from src.db.database import get_db
 
