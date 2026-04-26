@@ -204,6 +204,36 @@ function boundsFromPoints(pts: [number, number][]): { minX: number; maxX: number
   return { minX, maxX, minY, maxY };
 }
 
+const TAB_QS = 'tab';
+const URL_TAB_ORDER: (EntityKey | 'map')[] = ['groups', 'robots', 'tasks', 'events', 'obstacles', 'files', 'map'];
+
+function isUrlTab(s: string): s is EntityKey | 'map' {
+  return (URL_TAB_ORDER as readonly string[]).includes(s);
+}
+
+function readTabFromLocation(): EntityKey | 'map' {
+  if (typeof window === 'undefined') {
+    return 'groups';
+  }
+  const v = new URLSearchParams(window.location.search).get(TAB_QS);
+  if (v && isUrlTab(v)) {
+    return v;
+  }
+  return 'groups';
+}
+
+function writeTabToLocation(t: EntityKey | 'map') {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const u = new URL(window.location.href);
+  u.searchParams.set(TAB_QS, t);
+  const s = u.pathname + u.search + u.hash;
+  if (s !== window.location.pathname + window.location.search + window.location.hash) {
+    window.history.replaceState(null, '', s);
+  }
+}
+
 export default function App() {
   type TabKey = EntityKey | 'map';
   const [token, setToken] = useState<string | null>(() => getAuthToken());
@@ -212,9 +242,13 @@ export default function App() {
   const [loginErr, setLoginErr] = useState<string | null>(null);
   const [loginBusy, setLoginBusy] = useState(false);
 
-  const [tab, setTab] = useState<TabKey>('groups');
+  const [tab, setTab] = useState<TabKey>(() => readTabFromLocation());
   const [filters, setFilters] = useState(emptyFilters);
   const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    writeTabToLocation(tab);
+  }, [tab]);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
