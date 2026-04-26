@@ -96,7 +96,6 @@ EVENTS_JSON_SCHEMA = {
         "gridFsFileId": {"bsonType": ["objectId", "null"]},
         "description": {"bsonType": ["string", "null"]},
         "timestamp": {"bsonType": "date"},
-        # Spec includes createdAt; not required for seed/API writes.
         "createdAt": {"bsonType": ["date", "null"]},
     },
 }
@@ -146,7 +145,6 @@ TASKS_JSON_SCHEMA = {
                 "points": {
                     "bsonType": "array",
                     "items": {
-                        # Spec text: array of [int, int]
                         "bsonType": "array",
                         "minItems": 2,
                         "maxItems": 2,

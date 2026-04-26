@@ -1,4 +1,5 @@
 import sys
+import os
 
 from pymongo import ASCENDING, DESCENDING
 
@@ -6,7 +7,7 @@ from src.db.database import get_client, get_db
 from src.db.load_dump import link_seed_events_to_gridfs, load_seed_json_if_empty, seed_gridfs_if_empty
 from src.db.schemas import COLLECTION_SCHEMAS
 
-_DROP_ORDER = ("events", "tasks", "robots", "groups", "obstacles", "fs.chunks", "fs.files")
+_DROP_ORDER = ("events", "tasks", "robots", "groups", "obstacles", "users", "fs.chunks", "fs.files")
 
 
 def _drop_collections(db):
@@ -64,6 +65,43 @@ def _ensure_indexes(db):
     for coll_name, keys in indexes:
         db[coll_name].create_index(keys)
 
+    users = db["users"]
+    desired_name = "username_1"
+    existing = {idx.get("name"): idx for idx in users.list_indexes()}
+    idx = existing.get(desired_name)
+    if idx:
+        # If the existing index is non-unique, drop and recreate as unique.
+        if not bool(idx.get("unique")):
+            users.drop_index(desired_name)
+    users.create_index([("username", ASCENDING)], unique=True, name=desired_name)
+
+
+def _seed_default_user_if_empty(db):
+    from src.api.auth import hash_password
+    from src.api.mongo_http import utcnow
+
+    if db["users"].count_documents({}) > 0:
+        return
+
+    now = utcnow()
+    username = (os.environ.get("AUTH_DEFAULT_USER") or "admin").strip() or "admin"
+    password = os.environ.get("AUTH_DEFAULT_PASSWORD") or "admin"
+    role = (os.environ.get("AUTH_DEFAULT_ROLE") or "admin").strip() or "admin"
+    if role not in ("admin", "user"):
+        role = "admin"
+
+    # Default user for local dev / demo.
+    db["users"].insert_one(
+        {
+            "username": username,
+            "passwordHash": hash_password(password),
+            "role": role,
+            "active": True,
+            "createdAt": now,
+            "updatedAt": now,
+        }
+    )
+
 
 def init_database(drop=False):
     client = get_client()
@@ -73,6 +111,7 @@ def init_database(drop=False):
     _ensure_validators(db)
     _ensure_indexes(db)
     client.admin.command("ping")
+    _seed_default_user_if_empty(db)
     load_seed_json_if_empty(db)
     seed_gridfs_if_empty(db)
     link_seed_events_to_gridfs(db)
