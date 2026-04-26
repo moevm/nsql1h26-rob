@@ -3,6 +3,7 @@ import sys
 from pymongo import ASCENDING, DESCENDING
 
 from src.db.database import get_client, get_db
+from src.db.load_dump import link_seed_events_to_gridfs, load_seed_json_if_empty, seed_gridfs_if_empty
 from src.db.schemas import COLLECTION_SCHEMAS
 
 _DROP_ORDER = ("events", "tasks", "robots", "groups", "obstacles", "fs.chunks", "fs.files")
@@ -72,6 +73,9 @@ def init_database(drop=False):
     _ensure_validators(db)
     _ensure_indexes(db)
     client.admin.command("ping")
+    load_seed_json_if_empty(db)
+    seed_gridfs_if_empty(db)
+    link_seed_events_to_gridfs(db)
 
 
 def main():
