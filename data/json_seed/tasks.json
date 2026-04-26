@@ -1,0 +1,93 @@
+[
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439031"},
+    "name": "North Patrol",
+    "groupId": {"$oid": "507f1f77bcf86cd799439011"},
+    "groupName": "Alpha Team",
+    "type": "patrol",
+    "taskStatus": "active",
+    "taskDetails": {
+      "route": [
+        {"x": 0, "y": 10},
+        {"x": 5, "y": 10},
+        {"x": 10, "y": 12}
+      ],
+      "until": {"$date": "2026-04-01T08:00:00.000Z"}
+    },
+    "plannedRoute": {
+      "points": [
+        [0, 10],
+        [5, 10],
+        [10, 12]
+      ]
+    },
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439021"},
+        "assignedAt": {"$date": "2026-03-01T08:00:00.000Z"},
+        "removedAt": null,
+        "status": "working"
+      }
+    ],
+    "startTime": {"$date": "2026-03-01T08:00:00.000Z"},
+    "endTime": null,
+    "createdAt": {"$date": "2026-03-01T08:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-10T16:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439032"},
+    "name": "Zone C Scan",
+    "groupId": {"$oid": "507f1f77bcf86cd799439012"},
+    "groupName": "Scout Wing",
+    "type": "scanRadius",
+    "taskStatus": "paused",
+    "taskDetails": {
+      "center": {"x": 30, "y": 40},
+      "radius": 25
+    },
+    "plannedRoute": {
+      "points": [[30, 40]]
+    },
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439023"},
+        "assignedAt": {"$date": "2026-03-05T10:00:00.000Z"},
+        "removedAt": null,
+        "status": "assigned"
+      }
+    ],
+    "startTime": {"$date": "2026-03-05T10:00:00.000Z"},
+    "endTime": null,
+    "createdAt": {"$date": "2026-03-05T10:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-11T12:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439033"},
+    "name": "Move to Point R",
+    "groupId": {"$oid": "507f1f77bcf86cd799439013"},
+    "groupName": "Logistics Hub",
+    "type": "moveToTarget",
+    "taskStatus": "completed",
+    "taskDetails": {
+      "targetPosition": {"x": 100, "y": 50}
+    },
+    "plannedRoute": {
+      "points": [
+        [80, 45],
+        [100, 50]
+      ]
+    },
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439024"},
+        "assignedAt": {"$date": "2026-03-08T06:00:00.000Z"},
+        "removedAt": {"$date": "2026-03-08T09:00:00.000Z"},
+        "status": "completed"
+      }
+    ],
+    "startTime": {"$date": "2026-03-08T06:00:00.000Z"},
+    "endTime": {"$date": "2026-03-08T09:00:00.000Z"},
+    "createdAt": {"$date": "2026-03-08T06:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-12T09:00:00.000Z"}
+  }
+]

@@ -1,0 +1,54 @@
+[
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439021"},
+    "name": "Alpha-01",
+    "model": "Husky A200",
+    "groupId": {"$oid": "507f1f77bcf86cd799439011"},
+    "groupName": "Alpha Team",
+    "coordinates": {"x": 10, "y": 8},
+    "scanRadius": 50.0,
+    "weight": 52,
+    "comments": "Primary mapping and navigation lead for the Alpha line; equipped for long-range LiDAR runs.",
+    "createdAt": {"$date": "2026-02-02T08:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-10T14:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439022"},
+    "name": "Alpha-02",
+    "model": "Husky A200",
+    "groupId": {"$oid": "507f1f77bcf86cd799439011"},
+    "groupName": "Alpha Team",
+    "coordinates": {"x": 30, "y": 8},
+    "scanRadius": 45.0,
+    "weight": 52,
+    "comments": "Reserve unit for Alpha Team; cross-trained on the same routes as Alpha-01.",
+    "createdAt": {"$date": "2026-02-02T09:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-10T14:05:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439023"},
+    "name": "Scout-01",
+    "model": "Clearpath Jackal",
+    "groupId": {"$oid": "507f1f77bcf86cd799439012"},
+    "groupName": "Scout Wing",
+    "coordinates": {"x": 20, "y": 31},
+    "scanRadius": 20.0,
+    "weight": 17,
+    "comments": "Lightweight perimeter patrol; suited for frequent boundary checks and quick redeployment.",
+    "createdAt": {"$date": "2026-02-06T10:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-11T09:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439024"},
+    "name": "Cargo-01",
+    "model": "Unitree B1",
+    "groupId": {"$oid": "507f1f77bcf86cd799439013"},
+    "groupName": "Logistics Hub",
+    "coordinates": {"x": 35, "y": 31},
+    "scanRadius": 40.0,
+    "weight": 40,
+    "comments": "Dedicated shuttle between the main hall and warehouse B loading bays.",
+    "createdAt": {"$date": "2026-02-12T07:30:00.000Z"},
+    "updatedAt": {"$date": "2026-03-12T11:00:00.000Z"}
+  }
+]
