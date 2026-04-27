@@ -1,0 +1,26 @@
+[
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439011"},
+    "name": "Alpha Team",
+    "description": "Patrol and LiDAR coverage of the northern sector; primary unit for perimeter alerts and incident response.",
+    "status": "active",
+    "createdAt": {"$date": "2026-02-01T08:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-10T12:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439012"},
+    "name": "Scout Wing",
+    "description": "Rapid reconnaissance and short-range survey tasks; first line for area assessment and path clearing.",
+    "status": "active",
+    "createdAt": {"$date": "2026-02-05T09:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-11T10:30:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439013"},
+    "name": "Logistics Hub",
+    "description": "Shuttle runs between depots and standby hauling capacity for outbound warehouse transfers.",
+    "status": "paused",
+    "createdAt": {"$date": "2026-02-10T11:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-12T08:15:00.000Z"}
+  }
+]

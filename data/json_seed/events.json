@@ -1,0 +1,76 @@
+[
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439041"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439021"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439031"},
+    "type": "task_start",
+    "message": "North patrol task has started.",
+    "description": "Operator acknowledged start on Alpha-01; patrol route is armed and telemetry is live.",
+    "timestamp": {"$date": "2026-03-01T08:05:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439042"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439021"},
+    "taskId": null,
+    "type": "battery_low",
+    "message": "Battery state of charge is below 25%.",
+    "description": "Recommend charging before the next extended patrol segment or high-draw maneuver.",
+    "metric": {
+      "key": "battery_percent",
+      "from": 28,
+      "to": 22
+    },
+    "timestamp": {"$date": "2026-03-02T11:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439043"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439023"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439032"},
+    "type": "track_point",
+    "message": "Track point recorded at grid (12, 34).",
+    "description": "Telemetry sample stored for the Zone C scan task; position matches planned arc.",
+    "position": {"x": 12, "y": 34},
+    "prevPosition": {"x": 11, "y": 33},
+    "speed": 0.8,
+    "prevTimestamp": {"$date": "2026-03-06T14:19:30.000Z"},
+    "timestamp": {"$date": "2026-03-06T14:20:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439044"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439024"},
+    "taskId": null,
+    "type": "info",
+    "message": "Intermediate waypoint has been reached.",
+    "description": "Cargo unit reported position lock before the final approach to the drop lane.",
+    "target": {"x": 100, "y": 50},
+    "timestamp": {"$date": "2026-03-08T07:30:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439045"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439022"},
+    "taskId": null,
+    "type": "warning",
+    "message": "Obstacle detected in sector 3.",
+    "description": "Static obstacle logged on the local map; global planner notified for alternate routing.",
+    "position": {"x": 18, "y": 9},
+    "timestamp": {"$date": "2026-03-09T09:15:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439046"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439021"},
+    "taskId": null,
+    "type": "visual_capture",
+    "message": "Camera snapshot from front RGB (seed).",
+    "description": "Test image from data/gridfs_seed; gridFsFileId set on init.",
+    "timestamp": {"$date": "2026-03-10T10:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439047"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439022"},
+    "taskId": null,
+    "type": "visual_capture",
+    "message": "Camera snapshot from front RGB (seed).",
+    "description": "Second seed frame for demo navigation event ↔ file.",
+    "timestamp": {"$date": "2026-03-11T11:00:00.000Z"}
+  }
+]
