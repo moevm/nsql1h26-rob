@@ -2,6 +2,7 @@
 
 **Docker Compose**
 
+1*. cp .env.example .env
 1. `docker compose build --no-cache`
 2. `docker compose up`
 
