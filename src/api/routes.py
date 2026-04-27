@@ -38,16 +38,16 @@ def auth_login(body=Body(...)):
 
 @router.get("/api/groups", tags=["entities"])
 def list_groups(
-    skip=Query(0, ge=0),
-    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    name=Query(None, description="Подстрока в name (без учёта регистра)"),
-    description=Query(None, description="Подстрока в description (без учёта регистра)"),
-    status=Query(None, description="Точное значение status"),
-    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
-    created_after=Query(None),
-    created_before=Query(None),
-    updated_after=Query(None),
-    updated_before=Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    name: str | None = Query(None, description="Подстрока в name (без учёта регистра)"),
+    description: str | None = Query(None, description="Подстрока в description (без учёта регистра)"),
+    status: str | None = Query(None, description="Точное значение status"),
+    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
+    updated_after: str | None = Query(None),
+    updated_before: str | None = Query(None),
 ):
     q = {"$and": []}
     for cond in (
@@ -145,22 +145,22 @@ def delete_group(doc_id):
 
 @router.get("/api/robots", tags=["entities"])
 def list_robots(
-    skip=Query(0, ge=0),
-    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    name=Query(None),
-    model=Query(None),
-    group_name=Query(None, alias="groupName"),
-    comments=Query(None),
-    group_id=Query(None, alias="groupId"),
-    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
-    scan_radius_min=Query(None, alias="scanRadiusMin"),
-    scan_radius_max=Query(None, alias="scanRadiusMax"),
-    weight_min=Query(None, alias="weightMin"),
-    weight_max=Query(None, alias="weightMax"),
-    created_after=Query(None),
-    created_before=Query(None),
-    updated_after=Query(None),
-    updated_before=Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    name: str | None = Query(None),
+    model: str | None = Query(None),
+    group_name: str | None = Query(None, alias="groupName"),
+    comments: str | None = Query(None),
+    group_id: str | None = Query(None, alias="groupId"),
+    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    scan_radius_min: float | None = Query(None, alias="scanRadiusMin"),
+    scan_radius_max: float | None = Query(None, alias="scanRadiusMax"),
+    weight_min: int | None = Query(None, alias="weightMin"),
+    weight_max: int | None = Query(None, alias="weightMax"),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
+    updated_after: str | None = Query(None),
+    updated_before: str | None = Query(None),
 ):
     parts = []
     for c in (
@@ -343,24 +343,28 @@ def delete_robot(doc_id):
 
 @router.get("/api/tasks", tags=["entities"])
 def list_tasks(
-    skip=Query(0, ge=0),
-    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    name=Query(None),
-    group_name=Query(None, alias="groupName"),
-    task_type=Query(None, alias="type"),
-    task_status=Query(None, alias="taskStatus"),
-    group_id=Query(None, alias="groupId"),
-    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
-    robot_id=Query(None, alias="robotId", description="Любой робот в executionRobots"),
-    radius_min=Query(None, alias="radiusMin", description="taskDetails.radius >= ... (для scanRadius)"),
-    radius_max=Query(None, alias="radiusMax", description="taskDetails.radius <= ... (для scanRadius)"),
-    radius_m_min=Query(None, alias="radiusMMin", include_in_schema=False),
-    radius_m_max=Query(None, alias="radiusMMax", include_in_schema=False),
-    image_filename=Query(None, alias="imageFilename", description="Имя картинки (fs.files.filename), связанной с visual_capture событиями этой task"),
-    created_after=Query(None),
-    created_before=Query(None),
-    updated_after=Query(None),
-    updated_before=Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    name: str | None = Query(None),
+    group_name: str | None = Query(None, alias="groupName"),
+    task_type: str | None = Query(None, alias="type"),
+    task_status: str | None = Query(None, alias="taskStatus"),
+    group_id: str | None = Query(None, alias="groupId"),
+    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    robot_id: str | None = Query(None, alias="robotId", description="Любой робот в executionRobots"),
+    radius_min: int | None = Query(None, alias="radiusMin", description="taskDetails.radius >= ... (для scanRadius)"),
+    radius_max: int | None = Query(None, alias="radiusMax", description="taskDetails.radius <= ... (для scanRadius)"),
+    radius_m_min: int | None = Query(None, alias="radiusMMin", include_in_schema=False),
+    radius_m_max: int | None = Query(None, alias="radiusMMax", include_in_schema=False),
+    image_filename: str | None = Query(
+        None,
+        alias="imageFilename",
+        description="Имя картинки (fs.files.filename), связанной с visual_capture событиями этой task",
+    ),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
+    updated_after: str | None = Query(None),
+    updated_before: str | None = Query(None),
 ):
     parts = []
     for c in (icontains("name", name), icontains("groupName", group_name)):
@@ -664,17 +668,17 @@ def delete_task(doc_id):
 
 @router.get("/api/events", tags=["entities"])
 def list_events(
-    skip=Query(0, ge=0),
-    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    event_type=Query(None, alias="type"),
-    message=Query(None),
-    description=Query(None),
-    robot_id=Query(None, alias="robotId"),
-    task_id=Query(None, alias="taskId"),
-    grid_fs_file_id=Query(None, alias="gridFsFileId"),
-    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
-    timestamp_after=Query(None, alias="timestampAfter"),
-    timestamp_before=Query(None, alias="timestampBefore"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    event_type: str | None = Query(None, alias="type"),
+    message: str | None = Query(None),
+    description: str | None = Query(None),
+    robot_id: str | None = Query(None, alias="robotId"),
+    task_id: str | None = Query(None, alias="taskId"),
+    grid_fs_file_id: str | None = Query(None, alias="gridFsFileId"),
+    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    timestamp_after: str | None = Query(None, alias="timestampAfter"),
+    timestamp_before: str | None = Query(None, alias="timestampBefore"),
 ):
     parts = []
     if event_type:
@@ -799,19 +803,19 @@ def delete_event(doc_id):
 
 @router.get("/api/obstacles", tags=["entities"])
 def list_obstacles(
-    skip=Query(0, ge=0),
-    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    name=Query(None),
-    active=Query(None),
-    doc_id=Query(None, alias="docId", description="Точное совпадение _id"),
-    min_x_gte=Query(None, alias="minXGte"),
-    max_x_lte=Query(None, alias="maxXLte"),
-    min_y_gte=Query(None, alias="minYGte"),
-    max_y_lte=Query(None, alias="maxYLte"),
-    created_after=Query(None),
-    created_before=Query(None),
-    updated_after=Query(None),
-    updated_before=Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    name: str | None = Query(None),
+    active: bool | None = Query(None),
+    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    min_x_gte: int | None = Query(None, alias="minXGte"),
+    max_x_lte: int | None = Query(None, alias="maxXLte"),
+    min_y_gte: int | None = Query(None, alias="minYGte"),
+    max_y_lte: int | None = Query(None, alias="maxYLte"),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
+    updated_after: str | None = Query(None),
+    updated_before: str | None = Query(None),
 ):
     parts = []
     if doc_id and doc_id.strip():
@@ -944,12 +948,12 @@ def delete_obstacle(doc_id):
 
 @router.get("/api/gridfs/files", tags=["gridfs"])
 def list_gridfs_files(
-    skip=Query(0, ge=0),
-    limit=Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    filename=Query(None, description="Substring in filename (case-insensitive)"),
-    doc_id=Query(None, alias="docId", description="Exact fs.files _id"),
-    upload_after=Query(None),
-    upload_before=Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
+    filename: str | None = Query(None, description="Substring in filename (case-insensitive)"),
+    doc_id: str | None = Query(None, alias="docId", description="Exact fs.files _id"),
+    upload_after: str | None = Query(None),
+    upload_before: str | None = Query(None),
 ):
     q = {"$and": []}
     if doc_id and doc_id.strip():
