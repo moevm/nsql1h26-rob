@@ -192,6 +192,20 @@ function isObjectIdHex(s: string): boolean {
   return /^[0-9a-fA-F]{24}$/.test(s.trim());
 }
 
+function isRouteFilterValid(raw: string): boolean {
+  const s = raw.trim();
+  if (!s) return true; // empty filter is always valid
+  if (!s.endsWith(';')) return false;
+  const parts = s.split(';');
+  if (parts.length < 2) return false; // at least one "x,y;" yields ["x,y", ""]
+  if (parts[parts.length - 1].trim() !== '') return false; // must end with trailing ';'
+  const coordRe = /^\s*-?\d+\s*,\s*-?\d+\s*$/;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    if (!coordRe.test(parts[i])) return false;
+  }
+  return true;
+}
+
 function isImageFilename(name: unknown): boolean {
   const s = String(name ?? '').toLowerCase();
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(s);
@@ -477,6 +491,12 @@ export default function App() {
       setLoading(false);
       return;
     }
+    if (tab === 'tasks' && (f.route ?? '').trim() && !isRouteFilterValid(String(f.route ?? ''))) {
+      setRows([]);
+      setErr('Invalid route format. Expected: x,y;x,y; (ending with ;)');
+      setLoading(false);
+      return;
+    }
     try {
       let params: Record<string, string | number | boolean | undefined> = {
         skip: Number(f.skip) || 0,
@@ -529,7 +549,7 @@ export default function App() {
           startTimeBefore: localInputToIso(f.start_before),
           endTimeAfter: localInputToIso(f.end_after),
           endTimeBefore: localInputToIso(f.end_before),
-          route: f.route || undefined,
+          route: (f.route ?? '').trim() || undefined,
           created_after: localInputToIso(f.created_after),
           created_before: localInputToIso(f.created_before),
           updated_after: localInputToIso(f.updated_after),
@@ -833,8 +853,13 @@ export default function App() {
             <input
               className={FILTER_INP}
               value={f.route}
-              onChange={(e) => setF('route', e.target.value)}
-              placeholder="12,34; 20,10"
+              onChange={(e) => {
+                // keep it copy/paste friendly, but disallow letters/symbols
+                const raw = e.target.value;
+                const cleaned = raw.replace(/[^\d\s,;\-]/g, '');
+                setF('route', cleaned);
+              }}
+              placeholder="12,34;20,10;"
             />
           </label>
           <label>
