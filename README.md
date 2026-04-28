@@ -25,3 +25,10 @@
 2. `docker compose build --no-cache`
 3. `docker compose up`
 
+После успешного запуска приложение будет доступно по адресу:
+
+- **URL**: `http://localhost:8000`
+- **Логин**: `admin`
+- **Пароль**: `admin`
+
+
