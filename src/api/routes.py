@@ -1,3 +1,4 @@
+import json
 import re
 import mimetypes
 from datetime import datetime
@@ -352,6 +353,15 @@ def list_tasks(
     group_id: str | None = Query(None, alias="groupId"),
     doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
     robot_id: str | None = Query(None, alias="robotId", description="Любой робот в executionRobots"),
+    start_after: str | None = Query(None, alias="startTimeAfter"),
+    start_before: str | None = Query(None, alias="startTimeBefore"),
+    end_after: str | None = Query(None, alias="endTimeAfter"),
+    end_before: str | None = Query(None, alias="endTimeBefore"),
+    route_point: str | None = Query(
+        None,
+        alias="route",
+        description="Одна или несколько точек: 'x,y' или 'x,y; x,y; ...' (AND по всем точкам). Поиск идёт и по taskDetails.route, и по plannedRoute.points.",
+    ),
     radius_min: int | None = Query(None, alias="radiusMin", description="taskDetails.radius >= ... (для scanRadius)"),
     radius_max: int | None = Query(None, alias="radiusMax", description="taskDetails.radius <= ... (для scanRadius)"),
     radius_m_min: int | None = Query(None, alias="radiusMMin", include_in_schema=False),
@@ -381,6 +391,30 @@ def list_tasks(
     if robot_id:
         rid = oid_or_400(robot_id)
         parts.append({"executionRobots": {"$elemMatch": {"robotId": rid}}})
+
+    sa, sb = parse_dt(start_after), parse_dt(start_before)
+    if sa:
+        parts.append({"startTime": {"$gte": sa}})
+    if sb:
+        parts.append({"startTime": {"$lte": sb}})
+    ea, eb = parse_dt(end_after), parse_dt(end_before)
+    if ea:
+        parts.append({"endTime": {"$gte": ea}})
+    if eb:
+        parts.append({"endTime": {"$lte": eb}})
+
+    if route_point and route_point.strip():
+        pairs = re.findall(r"(\d+)\s*,\s*(\d+)", route_point)
+        for xs, ys in pairs:
+            x, y = int(xs), int(ys)
+            parts.append(
+                {
+                    "$or": [
+                        {"taskDetails.route": {"$elemMatch": {"x": x, "y": y}}},
+                        {"plannedRoute.points": [x, y]},
+                    ]
+                }
+            )
 
     rmin = radius_min if radius_min is not None else radius_m_min
     rmax = radius_max if radius_max is not None else radius_m_max
@@ -954,6 +988,9 @@ def list_gridfs_files(
     doc_id: str | None = Query(None, alias="docId", description="Exact fs.files _id"),
     upload_after: str | None = Query(None),
     upload_before: str | None = Query(None),
+    metadata: str | None = Query(None, description="Substring search over metadata (best-effort, post-filtered)"),
+    length_min: int | None = Query(None, alias="lengthMin"),
+    length_max: int | None = Query(None, alias="lengthMax"),
 ):
     q = {"$and": []}
     if doc_id and doc_id.strip():
@@ -965,13 +1002,27 @@ def list_gridfs_files(
         q["$and"].append({"uploadDate": {"$gte": ua}})
     if ub:
         q["$and"].append({"uploadDate": {"$lte": ub}})
+    if length_min is not None:
+        q["$and"].append({"length": {"$gte": int(length_min)}})
+    if length_max is not None:
+        q["$and"].append({"length": {"$lte": int(length_max)}})
     if not q["$and"]:
         del q["$and"]
         filt = {}
     else:
         filt = q
     cur = _files_coll().find(filt).sort("uploadDate", DESCENDING).skip(skip).limit(limit)
-    return [doc_to_jsonable(d) for d in cur]
+    docs = [doc_to_jsonable(d) for d in cur]
+    if metadata and metadata.strip():
+        needle = metadata.strip().lower()
+        def _meta_str(x):
+            try:
+                return json.dumps(x or {}, ensure_ascii=False, sort_keys=True).lower()
+            except Exception:
+                return str(x or "").lower()
+
+        docs = [d for d in docs if needle in _meta_str((d or {}).get("metadata"))]
+    return docs
 
 
 @router.get("/api/gridfs/files/{file_id}/download", tags=["gridfs"])

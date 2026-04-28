@@ -2,9 +2,9 @@
 
 **Docker Compose**
 
-1*.`cp .env.example .env`
-1. `docker compose build --no-cache`
-2. `docker compose up`
+1. `cp .env.example .env`
+2. `docker compose build --no-cache`
+3. `docker compose up`
 
 **Локально**
 
