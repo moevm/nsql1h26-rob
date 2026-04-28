@@ -43,7 +43,7 @@ const EVENT_TYPES = [
 const COLS: Record<EntityKey, string[]> = {
   groups: ['name', 'description', 'status', 'createdAt', 'updatedAt', '_id'],
   robots: ['name', 'model', 'groupName', 'groupId', 'scanRadius', 'weight', 'comments', 'createdAt', 'updatedAt', '_id'],
-  tasks: ['name', 'type', 'taskStatus', 'groupName', 'groupId', 'startTime', 'endTime', 'createdAt', 'updatedAt', '_id'],
+  tasks: ['name', 'type', 'taskStatus', 'route', 'groupName', 'groupId', 'startTime', 'endTime', 'createdAt', 'updatedAt', '_id'],
   events: ['type', 'message', 'description', 'robotId', 'taskId', 'gridFsFileId', 'timestamp', '_id'],
   obstacles: ['name', 'active', 'minX', 'maxX', 'minY', 'maxY', 'points', 'createdAt', 'updatedAt', '_id'],
   files: ['preview', 'filename', 'length', 'uploadDate', 'metadata', '_id'],
@@ -91,6 +91,11 @@ function emptyFilters(): Record<EntityKey, Record<string, string>> {
       radius_min: '',
       radius_max: '',
       image_filename: '',
+      start_after: '',
+      start_before: '',
+      end_after: '',
+      end_before: '',
+      route: '',
       created_after: '',
       created_before: '',
       updated_after: '',
@@ -129,6 +134,9 @@ function emptyFilters(): Record<EntityKey, Record<string, string>> {
     },
     files: {
       filename: '',
+      metadata: '',
+      length_min: '',
+      length_max: '',
       upload_after: '',
       upload_before: '',
       doc_id: '',
@@ -517,6 +525,11 @@ export default function App() {
           radiusMin: numOrUndef(f.radius_min),
           radiusMax: numOrUndef(f.radius_max),
           imageFilename: f.image_filename || undefined,
+          startTimeAfter: localInputToIso(f.start_after),
+          startTimeBefore: localInputToIso(f.start_before),
+          endTimeAfter: localInputToIso(f.end_after),
+          endTimeBefore: localInputToIso(f.end_before),
+          route: f.route || undefined,
           created_after: localInputToIso(f.created_after),
           created_before: localInputToIso(f.created_before),
           updated_after: localInputToIso(f.updated_after),
@@ -558,6 +571,9 @@ export default function App() {
         params = {
           ...params,
           filename: f.filename || undefined,
+          metadata: f.metadata || undefined,
+          lengthMin: numOrUndef(f.length_min),
+          lengthMax: numOrUndef(f.length_max),
           upload_after: localInputToIso(f.upload_after),
           upload_before: localInputToIso(f.upload_before),
           docId: safeFileDocId || undefined,
@@ -782,6 +798,46 @@ export default function App() {
             <input className={FILTER_INP} value={f.image_filename} onChange={(e) => setF('image_filename', e.target.value)} />
           </label>
           <label>
+            <span className={FILTER_LBL}>start_after</span>
+            <input
+              type="datetime-local"
+              className={dateInputClass(f.start_after)}
+              value={f.start_after}
+              onChange={(e) => setF('start_after', e.target.value)}
+            />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>start_before</span>
+            <input
+              type="datetime-local"
+              className={dateInputClass(f.start_before)}
+              value={f.start_before}
+              onChange={(e) => setF('start_before', e.target.value)}
+            />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>end_after</span>
+            <input type="datetime-local" className={dateInputClass(f.end_after)} value={f.end_after} onChange={(e) => setF('end_after', e.target.value)} />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>end_before</span>
+            <input
+              type="datetime-local"
+              className={dateInputClass(f.end_before)}
+              value={f.end_before}
+              onChange={(e) => setF('end_before', e.target.value)}
+            />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>route (x,y; x,y; ...)</span>
+            <input
+              className={FILTER_INP}
+              value={f.route}
+              onChange={(e) => setF('route', e.target.value)}
+              placeholder="12,34; 20,10"
+            />
+          </label>
+          <label>
             <span className={FILTER_LBL}>doc_id</span>
             <input className={FILTER_INP} value={f.doc_id} onChange={(e) => setF('doc_id', e.target.value)} />
           </label>
@@ -859,6 +915,18 @@ export default function App() {
           <label>
             <span className={FILTER_LBL}>filename</span>
             <input className={FILTER_INP} value={f.filename} onChange={(e) => setF('filename', e.target.value)} />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>metadata</span>
+            <input className={FILTER_INP} value={f.metadata} onChange={(e) => setF('metadata', e.target.value)} />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>length_min</span>
+            <input type="number" className={FILTER_INP} value={f.length_min} onChange={(e) => setF('length_min', e.target.value)} />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>length_max</span>
+            <input type="number" className={FILTER_INP} value={f.length_max} onChange={(e) => setF('length_max', e.target.value)} />
           </label>
           <label>
             <span className={FILTER_LBL}>doc_id</span>
@@ -1909,6 +1977,51 @@ export default function App() {
                                   ) : (
                                     <span className="text-slate-600">—</span>
                                   )}
+                                </td>
+                              );
+                            }
+                            if (tab === 'tasks' && c === 'route') {
+                              const r = row as Record<string, unknown>;
+                              const td = r.taskDetails as unknown;
+                              const mainRoute = td && typeof td === 'object' ? ((td as Record<string, unknown>).route as unknown) : undefined;
+                              const mainPts = Array.isArray(mainRoute) ? (mainRoute as unknown[]) : [];
+                              const mainText = mainPts
+                                .map((p) => {
+                                  if (!p || typeof p !== 'object') return null;
+                                  const x = (p as Record<string, unknown>).x;
+                                  const y = (p as Record<string, unknown>).y;
+                                  if (typeof x !== 'number' || typeof y !== 'number') return null;
+                                  return `${x},${y}`;
+                                })
+                                .filter(Boolean)
+                                .join(' → ');
+
+                              const planned = r.plannedRoute as unknown;
+                              const plannedPoints =
+                                planned && typeof planned === 'object' ? ((planned as Record<string, unknown>).points as unknown) : undefined;
+                              const plannedPts = Array.isArray(plannedPoints) ? (plannedPoints as unknown[]) : [];
+                              const plannedText = plannedPts
+                                .map((p) => {
+                                  if (!Array.isArray(p) || p.length !== 2) return null;
+                                  const x = p[0];
+                                  const y = p[1];
+                                  if (typeof x !== 'number' || typeof y !== 'number') return null;
+                                  return `${x},${y}`;
+                                })
+                                .filter(Boolean)
+                                .join(' → ');
+
+                              const text =
+                                mainText && plannedText
+                                  ? `route: ${mainText}\nplanned: ${plannedText}`
+                                  : plannedText
+                                    ? `planned: ${plannedText}`
+                                    : mainText
+                                      ? mainText
+                                      : '';
+                              return (
+                                <td key={c} className="p-2 align-top text-slate-300 max-w-[18rem] break-words font-mono text-[11px] whitespace-pre-wrap">
+                                  {text ? text : <span className="text-slate-600">—</span>}
                                 </td>
                               );
                             }
