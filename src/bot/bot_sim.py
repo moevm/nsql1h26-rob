@@ -71,5 +71,168 @@ class RobotSimulator:
                     matrix[y][x] = 0
         return matrix
 
+    def get_path(self, start, end, obstacles):
+        try:
+            matrix = self.build_collision_map(obstacles)
+            grid = Grid(matrix=matrix)
+            start_node = grid.node(max(0, min(GRID_SIZE-1, int(start['x']))),
+                                   max(0, min(GRID_SIZE-1, int(start['y']))))
+            end_node = grid.node(max(0, min(GRID_SIZE-1, int(end['x']))),
+                                 max(0, min(GRID_SIZE-1, int(end['y']))))
+            finder = AStarFinder(diagonal_movement=DiagonalMovement.always)
+            path, _ = finder.find_path(start_node, end_node, grid)
+            return path
+        except: return []
+
+    def create_scan_image(self, robot_pos, radius, visible_obstacles):
+        img = Image.new("RGB", (400, 400), "#1a1a1a")
+        draw = ImageDraw.Draw(img)
+        cx, cy = 200, 200
+        draw.ellipse([cx-radius, cy-radius, cx+radius, cy+radius], outline="#00ff00", width=2)
+        for obs in visible_obstacles:
+            rx1, ry1 = cx + (obs['minX'] - robot_pos['x']), cy + (obs['minY'] - robot_pos['y'])
+            rx2, ry2 = cx + (obs['maxX'] - robot_pos['x']), cy + (obs['maxY'] - robot_pos['y'])
+            draw.rectangle([rx1, ry1, rx2, ry2], fill="#ff4444", outline="white")
+        draw.ellipse([cx-4, cy-4, cx+4, cy+4], fill="yellow")
+        buf = BytesIO()
+        img.save(buf, format="JPEG")
+        return buf.getvalue()
+
+    def _drain_and_send_telemetry(self, rid, tid, new_pos):
+        prev = self.battery_levels.get(rid, 100.0)
+        self.battery_levels[rid] = max(0.0, prev - BATTERY_DRAIN)
+        b = max(0, min(100, int(self.battery_levels[rid])))
+        self.session.post(
+            f"{API_BASE}/robots/telemetry",
+            json={
+                "robotId": rid,
+                "taskId": tid,
+                "x": int(new_pos["x"]),
+                "y": int(new_pos["y"]),
+                "battery": b,
+            },
+        )
+        if b <= 0:
+            self._mark_robot_offline(rid)
+
+    def _mark_robot_offline(self, rid):
+        if rid in self._offline_rids:
+            return
+        try:
+            resp = self.session.patch(
+                f"{API_BASE}/robots/{rid}",
+                json={"robotStatus": "offline"},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                self._offline_rids.add(rid)
+                self.paths.pop(rid, None)
+                self.session.post(
+                    f"{API_BASE}/events",
+                    json={
+                        "type": "info",
+                        "robotId": rid,
+                        "message": "Robot offline (battery depleted).",
+                    },
+                    timeout=15,
+                )
+        except Exception:
+            pass
+
+    def step(self, robot, task, obstacles):
+        rid = clean_id(robot['_id'])
+        tid = clean_id(task['_id'])
+        if rid in self._offline_rids:
+            return False
+        if str(robot.get("robotStatus") or "").strip() == "offline":
+            self._offline_rids.add(rid)
+            self.paths.pop(rid, None)
+            return False
+        curr_pos = robot.get('coordinates') or {'x': random.randint(10,50), 'y': random.randint(10,50)}
+        details = task['taskDetails']
+
+        target = None
+        if task['type'] == "moveToTarget": target = details['targetPosition']
+        elif task['type'] == "scanRadius": target = details['center']
+        elif task['type'] == "patrol":
+            route = details.get("route") or []
+            if not route:
+                return False
+            target = route[(int(time.time()) // 15) % len(route)]
+
+        if not target: return False
+
+        if rid not in self.paths or not self.paths[rid]:
+            p = self.get_path(curr_pos, target, obstacles)
+            if not p: return False
+            self.paths[rid] = p[::BOT_PATH_STRIDE]
+
+        if self.paths[rid]:
+            next_pt = self.paths[rid].pop(0)
+            new_pos = {'x': next_pt[0], 'y': next_pt[1]}
+        else: new_pos = curr_pos
+
+        dist = math.hypot(target['x'] - new_pos['x'], target['y'] - new_pos['y'])
+        arrived = dist < 12
+
+        if task['type'] == "scanRadius" and arrived:
+            r = details['radius']
+            visible = [o for o in obstacles if math.hypot((o['minX']+o['maxX'])/2 - new_pos['x'],
+                                                          (o['minY']+o['maxY'])/2 - new_pos['y']) <= r]
+            img = self.create_scan_image(new_pos, r, visible)
+            up = self.session.post(f"{API_BASE}/gridfs/upload", files={'file': ('scan.jpg', img, 'image/jpeg')})
+            if up.status_code == 200:
+                fid = clean_id(up.json().get('fileId'))
+                self.session.post(f"{API_BASE}/events", json={
+                    "type": "info", "robotId": rid, "taskId": tid,
+                    "message": f"Scan found {len(visible)} objects.", "gridFsFileId": fid
+                })
+            self._drain_and_send_telemetry(rid, tid, new_pos)
+            return True
+
+        self._drain_and_send_telemetry(rid, tid, new_pos)
+
+        if (task['type'] == "moveToTarget" and arrived): return True
+        if task['type'] == "patrol":
+            u_str = details['until'].replace("Z", "+00:00")
+            if datetime.now().timestamp() > datetime.fromisoformat(u_str).timestamp():
+                return True
+        return False
+
+    def run(self):
+        self.wait_for_api()
+        while True:
+            try:
+                t_resp = self.session.get(f"{API_BASE}/tasks?taskStatus=active")
+                if t_resp.status_code == 401:
+                    self.login()
+                    continue
+
+                tasks = t_resp.json()
+                obstacles = self.session.get(f"{API_BASE}/obstacles?active=true").json()
+
+                for task in tasks:
+                    robots_list = task.get('executionRobots', [])
+                    done_count = 0
+                    for r_entry in robots_list:
+                        robot_id = clean_id(r_entry['robotId'])
+
+                        if r_entry['status'] == 'completed':
+                            done_count += 1
+                            continue
+
+                        r_resp = self.session.get(f"{API_BASE}/robots/{robot_id}")
+                        if r_resp.status_code == 200:
+                            if self.step(r_resp.json(), task, obstacles):
+                                done_count += 1
+
+                    if done_count >= len(robots_list) and robots_list:
+                        self.session.patch(f"{API_BASE}/tasks/{clean_id(task['_id'])}", json={
+                            "taskStatus": "completed", "updatedAt": datetime.now().isoformat()
+                        })
+            except Exception as e:
+                print(f"Error: {e}")
+            time.sleep(BOT_LOOP_SLEEP_SEC)
+
 if __name__ == "__main__":
     RobotSimulator().run()
