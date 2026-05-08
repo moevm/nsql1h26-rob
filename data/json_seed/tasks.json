@@ -89,5 +89,95 @@
     "endTime": {"$date": "2026-03-08T09:00:00.000Z"},
     "createdAt": {"$date": "2026-03-08T06:00:00.000Z"},
     "updatedAt": {"$date": "2026-03-12T09:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439034"},
+    "name": "Dock relay",
+    "groupId": {"$oid": "507f1f77bcf86cd799439015"},
+    "groupName": "Dock Crew",
+    "type": "patrol",
+    "taskStatus": "active",
+    "taskDetails": {
+      "route": [
+        {"x": 44, "y": 17},
+        {"x": 46, "y": 19},
+        {"x": 48, "y": 17}
+      ],
+      "until": {"$date": "2026-05-01T08:00:00.000Z"}
+    },
+    "plannedRoute": {"points": [[44, 17], [46, 19], [48, 17]]},
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439026"},
+        "assignedAt": {"$date": "2026-03-14T09:00:00.000Z"},
+        "removedAt": null,
+        "status": "working"
+      }
+    ],
+    "startTime": {"$date": "2026-03-14T09:00:00.000Z"},
+    "endTime": null,
+    "createdAt": {"$date": "2026-03-14T09:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-14T12:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439035"},
+    "name": "Night sweep",
+    "groupId": {"$oid": "507f1f77bcf86cd799439014"},
+    "groupName": "Night Watch",
+    "type": "moveToTarget",
+    "taskStatus": "paused",
+    "taskDetails": {"targetPosition": {"x": 8, "y": 35}},
+    "plannedRoute": {"points": [[5, 33], [8, 35]]},
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439025"},
+        "assignedAt": {"$date": "2026-03-15T22:00:00.000Z"},
+        "removedAt": null,
+        "status": "assigned"
+      }
+    ],
+    "startTime": {"$date": "2026-03-15T22:00:00.000Z"},
+    "endTime": null,
+    "createdAt": {"$date": "2026-03-15T22:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-16T08:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439036"},
+    "name": "Lab circle",
+    "groupId": {"$oid": "507f1f77bcf86cd799439016"},
+    "groupName": "R&D Lab",
+    "type": "scanRadius",
+    "taskStatus": "active",
+    "taskDetails": {"center": {"x": 52, "y": 38}, "radius": 6},
+    "plannedRoute": {"points": [[52, 38]]},
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439027"},
+        "assignedAt": {"$date": "2026-03-16T10:00:00.000Z"},
+        "removedAt": null,
+        "status": "working"
+      }
+    ],
+    "startTime": {"$date": "2026-03-16T10:00:00.000Z"},
+    "endTime": null,
+    "createdAt": {"$date": "2026-03-16T10:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-16T12:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439037"},
+    "name": "Alpha sweep micro",
+    "groupId": {"$oid": "507f1f77bcf86cd799439011"},
+    "groupName": "Alpha Team",
+    "type": "custom",
+    "taskStatus": "failed",
+    "taskDetails": {
+      "parameters": "sweep_micro_v2.py --dry-run (seed)"
+    },
+    "plannedRoute": null,
+    "executionRobots": [],
+    "startTime": {"$date": "2026-03-17T07:00:00.000Z"},
+    "endTime": {"$date": "2026-03-17T07:45:00.000Z"},
+    "createdAt": {"$date": "2026-03-17T07:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-17T07:50:00.000Z"}
   }
 ]
