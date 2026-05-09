@@ -14,11 +14,11 @@ _INSERT_ORDER = ("groups", "robots", "tasks", "events", "obstacles")
 
 
 def load_seed_json_if_empty(db) -> None:
-    if db.groups.count_documents({}) > 0:
-        return
     if not _SEED_DIR.is_dir():
         return
     for coll in _INSERT_ORDER:
+        if db[coll].count_documents({}) > 0:
+            continue
         path = _SEED_DIR / f"{coll}.json"
         if not path.is_file():
             continue
@@ -57,15 +57,12 @@ def seed_gridfs_if_empty(db) -> None:
 
 
 def link_seed_events_to_gridfs(db) -> None:
-    """Сопоставляет seed-файлы GridFS (по имени) событиям по порядку _id; задаёт gridFsFileId."""
+    db.events.update_many({"type": {"$ne": "visual_capture"}}, {"$unset": {"gridFsFileId": ""}})
     seed_files = list(db.fs.files.find({"metadata.seed": True}).sort("filename", 1))
-    if not seed_files:
+    cap = list(db.events.find({"type": "visual_capture"}).sort("_id", 1))
+    for ev in cap:
+        db.events.update_one({"_id": ev["_id"]}, {"$unset": {"gridFsFileId": ""}})
+    if not seed_files or not cap:
         return
-    evs = list(db.events.find().sort("_id", 1))
-    for i, fdoc in enumerate(seed_files):
-        if i >= len(evs):
-            break
-        ev = evs[i]
-        if ev.get("gridFsFileId") is not None:
-            continue
+    for fdoc, ev in zip(seed_files, cap):
         db.events.update_one({"_id": ev["_id"]}, {"$set": {"gridFsFileId": fdoc["_id"]}})
