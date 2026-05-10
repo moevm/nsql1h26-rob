@@ -26,11 +26,11 @@
   {
     "_id": {"$oid": "507f1f77bcf86cd799439053"},
     "name": "East Corridor Block",
-    "points": [[48, 6], [58, 6], [58, 9], [48, 9], [48, 6]],
+    "points": [[48, 2], [58, 2], [58, 5], [48, 5], [48, 2]],
     "minX": 48,
     "maxX": 58,
-    "minY": 6,
-    "maxY": 9,
+    "minY": 2,
+    "maxY": 5,
     "active": true,
     "createdAt": {"$date": "2026-02-22T00:00:00.000Z"},
     "updatedAt": {"$date": "2026-03-03T00:00:00.000Z"}
@@ -46,5 +46,41 @@
     "active": true,
     "createdAt": {"$date": "2026-02-23T00:00:00.000Z"},
     "updatedAt": {"$date": "2026-03-04T00:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439055"},
+    "name": "Dock lane divider",
+    "points": [[42, 8], [52, 8], [52, 15], [42, 15], [42, 8]],
+    "minX": 42,
+    "maxX": 52,
+    "minY": 8,
+    "maxY": 15,
+    "active": true,
+    "createdAt": {"$date": "2026-02-24T00:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-05T00:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439056"},
+    "name": "Night hedge buffer",
+    "points": [[17, 32], [28, 32], [28, 38], [17, 38], [17, 32]],
+    "minX": 17,
+    "maxX": 28,
+    "minY": 32,
+    "maxY": 38,
+    "active": true,
+    "createdAt": {"$date": "2026-02-25T00:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-06T00:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439057"},
+    "name": "Central plaza zone",
+    "points": [[22, 18], [38, 18], [38, 26], [22, 26], [22, 18]],
+    "minX": 22,
+    "maxX": 38,
+    "minY": 18,
+    "maxY": 26,
+    "active": false,
+    "createdAt": {"$date": "2026-02-26T00:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-07T00:00:00.000Z"}
   }
 ]

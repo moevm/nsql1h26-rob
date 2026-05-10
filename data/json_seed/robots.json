@@ -50,5 +50,44 @@
     "comments": "Dedicated shuttle between the main hall and warehouse B loading bays.",
     "createdAt": {"$date": "2026-02-12T07:30:00.000Z"},
     "updatedAt": {"$date": "2026-03-12T11:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439025"},
+    "name": "Night-01",
+    "model": "Clearpath Jackal",
+    "groupId": {"$oid": "507f1f77bcf86cd799439014"},
+    "groupName": "Night Watch",
+    "coordinates": {"x": 8, "y": 28},
+    "scanRadius": 22.0,
+    "weight": 17,
+    "comments": "Thermal-assisted patrol along south fence.",
+    "createdAt": {"$date": "2026-02-15T10:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-13T09:30:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439026"},
+    "name": "Dock-01",
+    "model": "MiR200",
+    "groupId": {"$oid": "507f1f77bcf86cd799439015"},
+    "groupName": "Dock Crew",
+    "coordinates": {"x": 45, "y": 5},
+    "scanRadius": 30.0,
+    "weight": 65,
+    "comments": "Line haul between dock doors A and B.",
+    "createdAt": {"$date": "2026-02-17T08:15:00.000Z"},
+    "updatedAt": {"$date": "2026-03-14T11:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439027"},
+    "name": "Lab-Proto",
+    "model": "Custom Dev Kit",
+    "groupId": {"$oid": "507f1f77bcf86cd799439016"},
+    "groupName": "R&D Lab",
+    "coordinates": {"x": 52, "y": 38},
+    "scanRadius": 15.0,
+    "weight": 25,
+    "comments": "Firmware soak-test loops with frequent reboot.",
+    "createdAt": {"$date": "2026-02-18T09:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-15T14:20:00.000Z"}
   }
 ]
