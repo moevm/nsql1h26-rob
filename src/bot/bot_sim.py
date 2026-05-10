@@ -4,7 +4,7 @@ import math
 import requests
 import random
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
 from PIL import Image, ImageDraw
 
 from pathfinding.core.grid import Grid
@@ -39,6 +39,23 @@ def clean_id(oid):
     if isinstance(oid, dict) and "$oid" in oid:
         return oid["$oid"]
     return str(oid)
+
+
+def iso_datetime_from_api(val):
+    """Строка ISO или BSON Extended JSON {\"$date\": ...} из ответа API."""
+    if isinstance(val, str):
+        return val.replace("Z", "+00:00")
+    if isinstance(val, dict) and "$date" in val:
+        inner = val["$date"]
+        if isinstance(inner, str):
+            return inner.replace("Z", "+00:00")
+        if isinstance(inner, (int, float)):
+            return datetime.fromtimestamp(inner / 1000.0, tz=timezone.utc).isoformat()
+        if isinstance(inner, dict) and "$numberLong" in inner:
+            ms = int(inner["$numberLong"])
+            return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc).isoformat()
+    raise TypeError(f"unsupported datetime value: {type(val)!r}")
+
 
 class RobotSimulator:
     def __init__(self):
@@ -194,7 +211,7 @@ class RobotSimulator:
 
         if (task['type'] == "moveToTarget" and arrived): return True
         if task['type'] == "patrol":
-            u_str = details['until'].replace("Z", "+00:00")
+            u_str = iso_datetime_from_api(details["until"])
             if datetime.now().timestamp() > datetime.fromisoformat(u_str).timestamp():
                 return True
         return False
