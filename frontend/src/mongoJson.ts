@@ -78,6 +78,16 @@ const ID_COLUMN_KEYS = new Set(['_id', 'groupId', 'robotId', 'taskId', 'gridFsFi
 const DATE_KEY_RE = /^(createdAt|updatedAt|timestamp|startTime|endTime|prevTimestamp|assignedAt|removedAt|uploadDate)$/;
 
 export function formatTableCell(value: unknown, columnKey: string): string {
+  if (columnKey === 'robotStatus') {
+    if (value === null || value === undefined) {
+      return 'online';
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    return 'online';
+  }
+
   if (value === null || value === undefined) {
     return '—';
   }

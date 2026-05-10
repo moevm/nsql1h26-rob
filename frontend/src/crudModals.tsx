@@ -1,5 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DESCRIPTION_MAX_LEN } from './appConstants';
+import { OidSuggestInput } from './components/OidSuggestInput';
 import { apiPatch, apiPost } from './apiCrud';
+import { isObjectIdHex } from './entityUtils';
+import { sanitizeBracketPointsTyping, sanitizeDecimalTyping, sanitizeNonNegIntTyping } from './coordinateInput';
 import { bsonId, dateToInput, localInputToIso, refId } from './mongoJson';
 
 export type EntityKey = 'groups' | 'robots' | 'tasks' | 'events' | 'obstacles' | 'files';
@@ -7,22 +11,6 @@ export type EntityKey = 'groups' | 'robots' | 'tasks' | 'events' | 'obstacles' |
 const GROUP_STATUS = ['active', 'inactive', 'paused', 'error'] as const;
 const TASK_TYPES = ['moveToTarget', 'patrol', 'scanRadius', 'custom'] as const;
 const TASK_STATUS = ['active', 'paused', 'completed', 'cancelled', 'failed'] as const;
-const EVENT_TYPES = [
-  'battery_low',
-  'battery_critical',
-  'battery_delta',
-  'task_created',
-  'task_start',
-  'task_complete',
-  'task_failed',
-  'error',
-  'warning',
-  'info',
-  'track_point',
-  'status_change',
-  'metric_change',
-  'visual_capture',
-] as const;
 
 const inp = 'bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100 w-full';
 const lbl = 'text-[10px] text-slate-500 block mb-0.5';
@@ -55,13 +43,40 @@ function parsePointsJson(pointsJson: string): { ok: true; points: { x: number; y
   }
   const pts: { x: number; y: number }[] = [];
   for (const item of raw) {
-    if (!item || typeof item !== 'object') return { ok: false, error: 'Each point must be an object {x,y}' };
+    if (Array.isArray(item) && item.length === 2) {
+      const nx = Number(item[0]);
+      const ny = Number(item[1]);
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) {
+        return { ok: false, error: 'Each [x,y] pair must contain numbers' };
+      }
+      pts.push({ x: clampInt(nx), y: clampInt(ny) });
+      continue;
+    }
+    if (!item || typeof item !== 'object') return { ok: false, error: 'Each point must be {x,y} or [x,y]' };
     const x = (item as { x?: unknown }).x;
     const y = (item as { y?: unknown }).y;
     if (typeof x !== 'number' || typeof y !== 'number') return { ok: false, error: 'Each point must have numeric x and y' };
     pts.push({ x: clampInt(x), y: clampInt(y) });
   }
   return { ok: true, points: pts };
+}
+
+function patrolRouteToBracketJson(route: unknown): string {
+  if (!Array.isArray(route) || route.length === 0) return '[]';
+  const pairs: number[][] = [];
+  for (const p of route) {
+    if (p && typeof p === 'object' && !Array.isArray(p)) {
+      const o = p as Record<string, unknown>;
+      const x = Number(o.x);
+      const y = Number(o.y);
+      if (Number.isFinite(x) && Number.isFinite(y)) pairs.push([clampInt(x), clampInt(y)]);
+    } else if (Array.isArray(p) && p.length === 2) {
+      const x = Number(p[0]);
+      const y = Number(p[1]);
+      if (Number.isFinite(x) && Number.isFinite(y)) pairs.push([clampInt(x), clampInt(y)]);
+    }
+  }
+  return JSON.stringify(pairs);
 }
 
 function parseObstaclePoints(pointsJson: string): { ok: true; points: [number, number][] } | { ok: false; error: string } {
@@ -142,26 +157,56 @@ type ModalState = {
   doc?: Record<string, unknown>;
 };
 
+export type MapPickerTaskResume = {
+  modalMode: 'create' | 'edit';
+  seedDoc: Record<string, unknown>;
+};
+
+export type MapPickerTaskPayload = {
+  taskType: (typeof TASK_TYPES)[number];
+  plannedRouteEnabled: boolean;
+  radius: number;
+  mainPts: { x: number; y: number }[];
+  plannedPts: { x: number; y: number }[];
+  resume?: MapPickerTaskResume;
+};
+
+export type MapPickerObstacleResume = {
+  modalMode: 'create' | 'edit';
+  seedDoc: Record<string, unknown>;
+};
+
+export type MapPickerObstaclePayload = {
+  resume: MapPickerObstacleResume;
+  obstacleDraftPts: { x: number; y: number }[];
+};
+
+function obstaclePairsToDraftPts(pairs: [number, number][]): { x: number; y: number }[] {
+  if (pairs.length < 2) return pairs.map(([x, y]) => ({ x, y }));
+  const first = pairs[0];
+  const last = pairs[pairs.length - 1];
+  const open = last[0] === first[0] && last[1] === first[1] ? pairs.slice(0, -1) : pairs;
+  return open.map(([x, y]) => ({ x, y }));
+}
+
 export function CrudModal({
   modal,
   onClose,
   onSaved,
   groupPick,
   robotPick,
+  taskPick = [],
   onOpenMapPicker,
+  onOpenObstacleMapPicker,
 }: {
   modal: ModalState;
   onClose: () => void;
   onSaved: () => void;
   groupPick: { id: string; name: string }[];
   robotPick: { id: string; name: string }[];
-  onOpenMapPicker?: (payload: {
-    taskType: (typeof TASK_TYPES)[number];
-    plannedRouteEnabled: boolean;
-    radius: number;
-    mainPts: { x: number; y: number }[];
-    plannedPts: { x: number; y: number }[];
-  }) => void;
+  taskPick?: { id: string; name: string }[];
+  onOpenMapPicker?: (payload: MapPickerTaskPayload) => void;
+  onOpenObstacleMapPicker?: (payload: MapPickerObstaclePayload) => void;
 }) {
   switch (modal.entity) {
     case 'groups':
@@ -180,14 +225,112 @@ export function CrudModal({
         />
       );
     case 'events':
-      return <EventsModal modal={modal} onClose={onClose} onSaved={onSaved} robotPick={robotPick} />;
+      return <EventsModal modal={modal} onClose={onClose} onSaved={onSaved} robotPick={robotPick} taskPick={taskPick} />;
     case 'obstacles':
-      return <ObstaclesModal modal={modal} onClose={onClose} onSaved={onSaved} />;
+      return (
+        <ObstaclesModal
+          modal={modal}
+          onClose={onClose}
+          onSaved={onSaved}
+          onOpenObstacleMapPicker={onOpenObstacleMapPicker}
+        />
+      );
     case 'files':
       return null;
     default:
       return null;
   }
+}
+
+function EventsModal({
+  modal,
+  onClose,
+  onSaved,
+  robotPick,
+  taskPick,
+}: {
+  modal: ModalState;
+  onClose: () => void;
+  onSaved: () => void;
+  robotPick: { id: string; name: string }[];
+  taskPick: { id: string; name: string }[];
+}) {
+  if (modal.mode !== 'create') {
+    return null;
+  }
+  const [err, setErr] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [description, setDescription] = useState('');
+  const [robotId, setRobotId] = useState('');
+  const [taskId, setTaskId] = useState('');
+
+  const save = async () => {
+    setErr(null);
+    const rid = robotId.trim();
+    const tid = taskId.trim();
+    if (rid && !isObjectIdHex(rid)) {
+      setErr('robotId must be a 24-character ObjectId hex or empty.');
+      return;
+    }
+    if (tid && !isObjectIdHex(tid)) {
+      setErr('taskId must be a 24-character ObjectId hex or empty.');
+      return;
+    }
+    if (description.length > DESCRIPTION_MAX_LEN) {
+      setErr(`Description must be at most ${DESCRIPTION_MAX_LEN} characters.`);
+      return;
+    }
+    try {
+      await apiPost('/api/events', {
+        type: 'info',
+        ...(message.trim() ? { message: message.trim() } : {}),
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(rid ? { robotId: rid } : {}),
+        ...(tid ? { taskId: tid } : {}),
+      });
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-4 space-y-3 shadow-xl">
+        <h3 className="text-sm font-semibold text-slate-100">New info event</h3>
+        <p className="text-[11px] text-slate-500">Only the <span className="text-slate-400">info</span> event type may be created.</p>
+        {err && <p className="text-xs text-red-400">{err}</p>}
+        <label>
+          <span className={lbl}>type</span>
+          <input className={inp} value="info" readOnly aria-readonly />
+        </label>
+        <label>
+          <span className={lbl}>message</span>
+          <input className={inp} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional summary" />
+        </label>
+        <label>
+          <span className={lbl}>description</span>
+          <textarea className={inp} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </label>
+        <label>
+          <span className={lbl}>robotId</span>
+          <OidSuggestInput className={inp} value={robotId} onChange={setRobotId} placeholder="ObjectId hex or pick…" options={robotPick} />
+        </label>
+        <label>
+          <span className={lbl}>taskId</span>
+          <OidSuggestInput className={inp} value={taskId} onChange={setTaskId} placeholder="ObjectId hex or pick…" options={taskPick} />
+        </label>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" className="text-xs px-3 py-1.5 rounded border border-slate-600 text-slate-400" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="text-xs px-3 py-1.5 rounded bg-[#137fec] text-white font-medium" onClick={() => void save()}>
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function GroupsModal({
@@ -211,6 +354,10 @@ function GroupsModal({
       const n = name.trim();
       if (!n) {
         setErr('name is required');
+        return;
+      }
+      if (description.length > DESCRIPTION_MAX_LEN) {
+        setErr(`Description must be at most ${DESCRIPTION_MAX_LEN} characters.`);
         return;
       }
       const payload = { name, description: description || null, status };
@@ -279,8 +426,6 @@ function RobotsModal({
   const [groupId, setGroupId] = useState(mode === 'edit' && doc ? refId(doc.groupId) : '');
   const [scanRadius, setScanRadius] = useState(mode === 'edit' && doc && doc.scanRadius != null ? String(doc.scanRadius) : '');
   const [weight, setWeight] = useState(mode === 'edit' && doc && doc.weight != null ? String(doc.weight) : '');
-  const [comments, setComments] = useState(mode === 'edit' && doc ? String(doc.comments ?? '') : '');
-
   const save = async () => {
     setErr(null);
     const n = name.trim();
@@ -312,7 +457,6 @@ function RobotsModal({
       name: n,
       model: m,
       groupId: gid,
-      comments: comments || null,
     };
     const sr = Number(srRaw);
     const w = Number(wRaw);
@@ -353,26 +497,37 @@ function RobotsModal({
         </label>
         <label>
           <span className={lbl}>groupId</span>
-          <select className={inp} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-            <option value="">— select group —</option>
-            {groupPick.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name} ({g.id.slice(-6)})
-              </option>
-            ))}
-          </select>
+          <OidSuggestInput
+            className={inp}
+            value={groupId}
+            onChange={setGroupId}
+            placeholder="ObjectId hex or pick a hint…"
+            options={groupPick}
+          />
         </label>
         <label>
           <span className={lbl}>scanRadius</span>
-          <input type="number" className={inp} value={scanRadius} onChange={(e) => setScanRadius(e.target.value)} />
+          <input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            spellCheck={false}
+            className={inp}
+            value={scanRadius}
+            onChange={(e) => setScanRadius(sanitizeDecimalTyping(e.target.value))}
+          />
         </label>
         <label>
           <span className={lbl}>weight</span>
-          <input type="number" className={inp} value={weight} onChange={(e) => setWeight(e.target.value)} />
-        </label>
-        <label>
-          <span className={lbl}>comments</span>
-          <textarea className={inp} rows={2} value={comments} onChange={(e) => setComments(e.target.value)} />
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            spellCheck={false}
+            className={inp}
+            value={weight}
+            onChange={(e) => setWeight(sanitizeNonNegIntTyping(e.target.value))}
+          />
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" className="text-xs px-3 py-1.5 rounded border border-slate-600 text-slate-400" onClick={onClose}>
@@ -398,13 +553,7 @@ function TasksModal({
   onClose: () => void;
   onSaved: () => void;
   groupPick: { id: string; name: string }[];
-  onOpenMapPicker?: (payload: {
-    taskType: (typeof TASK_TYPES)[number];
-    plannedRouteEnabled: boolean;
-    radius: number;
-    mainPts: { x: number; y: number }[];
-    plannedPts: { x: number; y: number }[];
-  }) => void;
+  onOpenMapPicker?: (payload: MapPickerTaskPayload) => void;
 }) {
   const { mode, doc } = modal;
   const seedDoc = doc ?? {};
@@ -415,21 +564,26 @@ function TasksModal({
   const [type, setType] = useState(String((seedDoc as any).type ?? 'patrol'));
   const [taskStatus, setTaskStatus] = useState(String((seedDoc as any).taskStatus ?? 'active'));
   const td = ((seedDoc as any).taskDetails ?? null) as any;
-  // Note: tasks are group-scoped; we don't assign robots to tasks in this UI.
 
-  const [targetX, setTargetX] = useState(td?.targetPosition?.x != null ? String(td.targetPosition.x) : '');
-  const [targetY, setTargetY] = useState(td?.targetPosition?.y != null ? String(td.targetPosition.y) : '');
+  const [targetX, setTargetX] = useState(
+    td?.targetPosition?.x != null ? sanitizeNonNegIntTyping(String(td.targetPosition.x)) : '',
+  );
+  const [targetY, setTargetY] = useState(
+    td?.targetPosition?.y != null ? sanitizeNonNegIntTyping(String(td.targetPosition.y)) : '',
+  );
 
   const [patrolUntil, setPatrolUntil] = useState(mode === 'edit' && doc ? dateToInput((td as any)?.until) : '');
-  const [patrolRouteJson, setPatrolRouteJson] = useState(() => (Array.isArray(td?.route) ? JSON.stringify(td.route) : '[]'));
+  const [patrolRouteJson, setPatrolRouteJson] = useState(() =>
+    Array.isArray(td?.route) ? patrolRouteToBracketJson(td.route) : '[]',
+  );
   const [patrolRoute, setPatrolRoute] = useState<{ x: number; y: number }[]>(() => {
     const parsed = parsePointsJson(patrolRouteJson);
     return parsed.ok ? parsed.points : [];
   });
 
-  const [centerX, setCenterX] = useState(td?.center?.x != null ? String(td.center.x) : '');
-  const [centerY, setCenterY] = useState(td?.center?.y != null ? String(td.center.y) : '');
-  const [radius, setRadius] = useState(td?.radius != null ? String(td.radius) : '');
+  const [centerX, setCenterX] = useState(td?.center?.x != null ? sanitizeNonNegIntTyping(String(td.center.x)) : '');
+  const [centerY, setCenterY] = useState(td?.center?.y != null ? sanitizeNonNegIntTyping(String(td.center.y)) : '');
+  const [radius, setRadius] = useState(td?.radius != null ? sanitizeNonNegIntTyping(String(td.radius)) : '');
 
   const [parameters, setParameters] = useState(td?.parameters != null ? String(td.parameters) : '');
   const seedPlannedPts = (() => {
@@ -438,9 +592,9 @@ function TasksModal({
     return Array.isArray(pts) ? pts : null;
   })();
   const [plannedRouteEnabled, setPlannedRouteEnabled] = useState(() => Boolean(seedPlannedPts && seedPlannedPts.length));
-  const [plannedRouteJson, setPlannedRouteJson] = useState(() => (seedPlannedPts && seedPlannedPts.length ? JSON.stringify(seedPlannedPts) : ''));
-
-  // robotPick not used for task creation: tasks are bound to groups.
+  const [plannedRouteJson, setPlannedRouteJson] = useState(() =>
+    seedPlannedPts && seedPlannedPts.length ? sanitizeBracketPointsTyping(JSON.stringify(seedPlannedPts)) : '',
+  );
 
   const resetDetailsForType = (nextType: string) => {
     setErr(null);
@@ -459,9 +613,6 @@ function TasksModal({
       setParameters('');
     }
   };
-
-  // Note: we reset detail fields explicitly on type change (see the <select> onChange).
-  // Auto-resetting here would wipe prefilled values coming from the map picker.
 
   const addExecRobot = () => {};
 
@@ -557,7 +708,7 @@ function TasksModal({
         type,
         taskStatus,
         taskDetails,
-        executionRobots: [],
+        executionRobots: mode === 'edit' && doc ? (((doc as any).executionRobots as unknown) ?? []) : [],
         plannedRoute,
       };
       if (mode === 'create') {
@@ -581,7 +732,6 @@ function TasksModal({
               type="button"
               className="text-xs px-3 py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-800"
               onClick={() => {
-                // Convert current form values into map draft points.
                 const tt = (type as (typeof TASK_TYPES)[number]) || 'moveToTarget';
                 let mainPts: { x: number; y: number }[] = [];
                 if (tt === 'moveToTarget') {
@@ -614,12 +764,79 @@ function TasksModal({
                   }
                 }
                 const r = safeNum(radius);
+                const taskDetailsPartial: Record<string, unknown> = {};
+                if (type === 'moveToTarget') {
+                  const tx = safeNum(targetX);
+                  const ty = safeNum(targetY);
+                  if (tx != null && ty != null) {
+                    taskDetailsPartial.targetPosition = { x: clampInt(tx), y: clampInt(ty) };
+                  }
+                } else if (type === 'patrol') {
+                  const parsed = parsePointsJson(patrolRouteJson);
+                  if (parsed.ok && parsed.points.length) {
+                    taskDetailsPartial.route = parsed.points;
+                  }
+                  const untilIso = patrolUntil ? localInputToIso(patrolUntil) : undefined;
+                  if (untilIso) {
+                    taskDetailsPartial.until = untilIso;
+                  } else if (mode === 'edit' && td && (td as any).until != null) {
+                    taskDetailsPartial.until = (td as any).until;
+                  }
+                } else if (type === 'scanRadius') {
+                  const cx = safeNum(centerX);
+                  const cy = safeNum(centerY);
+                  const rad = safeNum(radius);
+                  if (cx != null && cy != null) {
+                    taskDetailsPartial.center = { x: clampInt(cx), y: clampInt(cy) };
+                  }
+                  if (rad != null) {
+                    taskDetailsPartial.radius = clampInt(rad);
+                  }
+                } else if (type === 'custom') {
+                  taskDetailsPartial.parameters = parameters;
+                }
+                let snapshotPlanned: Record<string, unknown> | null = null;
+                if (plannedRouteEnabled) {
+                  const rawPrSnap = plannedRouteJson.trim();
+                  if (rawPrSnap) {
+                    try {
+                      const parsedPr = JSON.parse(rawPrSnap);
+                      if (Array.isArray(parsedPr)) {
+                        snapshotPlanned = { points: parsedPr };
+                      }
+                    } catch {
+                      snapshotPlanned = null;
+                    }
+                  } else if (mode === 'edit' && (seedDoc as any).plannedRoute && typeof (seedDoc as any).plannedRoute === 'object') {
+                    snapshotPlanned = (seedDoc as any).plannedRoute as Record<string, unknown>;
+                  }
+                }
+                const baseDoc = doc && mode === 'edit' ? { ...doc } : {};
+                const gidTrim = groupId.trim();
+                const seedDocSnapshot: Record<string, unknown> = {
+                  ...baseDoc,
+                  name: name.trim() || (doc ? String((doc as any).name ?? '') : ''),
+                  ...(gidTrim ? { groupId: gidTrim } : doc ? { groupId: (doc as any).groupId } : {}),
+                  type,
+                  taskStatus,
+                  taskDetails: { ...(((doc as any)?.taskDetails as object) ?? {}), ...taskDetailsPartial },
+                  plannedRoute: snapshotPlanned,
+                  executionRobots:
+                    mode === 'edit' && doc && Array.isArray((doc as any).executionRobots)
+                      ? (doc as any).executionRobots
+                      : ((doc as any)?.executionRobots ?? []),
+                };
+                const resumePayload: MapPickerTaskResume = {
+                  modalMode: mode === 'edit' ? 'edit' : 'create',
+                  seedDoc: seedDocSnapshot,
+                };
                 onOpenMapPicker({
                   taskType: tt,
                   plannedRouteEnabled,
                   radius: r != null ? Math.max(1, clampInt(r)) : 8,
                   mainPts,
                   plannedPts,
+                  resume: resumePayload,
                 });
               }}
               title="Switch to Map and pick points by clicks"
@@ -635,14 +852,13 @@ function TasksModal({
         </label>
         <label>
           <span className={lbl}>groupId</span>
-          <select className={inp} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-            <option value="">—</option>
-            {groupPick.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
+          <OidSuggestInput
+            className={inp}
+            value={groupId}
+            onChange={setGroupId}
+            placeholder="ObjectId hex or pick a hint…"
+            options={groupPick}
+          />
         </label>
         <label>
           <span className={lbl}>type</span>
@@ -653,10 +869,8 @@ function TasksModal({
               const next = e.target.value;
               setType(next);
               if (mode !== 'create') {
-                // In edit mode we don't auto-reset; user may be inspecting existing data.
                 return;
               }
-              // For create mode, reset immediately so the UI matches the selected type.
               resetDetailsForType(next);
             }}
           >
@@ -699,8 +913,13 @@ function TasksModal({
           </label>
           {plannedRouteEnabled && (
             <label>
-              <span className={lbl}>plannedRoute.points (JSON of [[x,y],...])</span>
-              <textarea className={inp} rows={4} value={plannedRouteJson} onChange={(e) => setPlannedRouteJson(e.target.value)} />
+              <span className={lbl}>plannedRoute.points ([[x,y],…] only)</span>
+              <textarea
+                className={inp}
+                rows={4}
+                value={plannedRouteJson}
+                onChange={(e) => setPlannedRouteJson(sanitizeBracketPointsTyping(e.target.value))}
+              />
               {createMode && <div className="text-[11px] text-slate-600 mt-1">Tip: you can also fill it by clicks on the Map tab.</div>}
             </label>
           )}
@@ -710,11 +929,27 @@ function TasksModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <label>
               <span className={lbl}>taskDetails.targetPosition.x</span>
-              <input type="number" className={inp} value={targetX} onChange={(e) => setTargetX(e.target.value)} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                className={inp}
+                value={targetX}
+                onChange={(e) => setTargetX(sanitizeNonNegIntTyping(e.target.value))}
+              />
             </label>
             <label>
               <span className={lbl}>taskDetails.targetPosition.y</span>
-              <input type="number" className={inp} value={targetY} onChange={(e) => setTargetY(e.target.value)} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                className={inp}
+                value={targetY}
+                onChange={(e) => setTargetY(sanitizeNonNegIntTyping(e.target.value))}
+              />
             </label>
           </div>
         )}
@@ -726,13 +961,13 @@ function TasksModal({
               <input type="datetime-local" className={dateInp(patrolUntil)} value={patrolUntil} onChange={(e) => setPatrolUntil(e.target.value)} />
             </label>
             <label>
-              <span className={lbl}>taskDetails.route (JSON)</span>
+              <span className={lbl}>taskDetails.route (only [[x,y],…])</span>
               <textarea
                 className={inp}
                 rows={10}
                 value={patrolRouteJson}
                 onChange={(e) => {
-                  const v = e.target.value;
+                  const v = sanitizeBracketPointsTyping(e.target.value);
                   setPatrolRouteJson(v);
                   const parsed = parsePointsJson(v);
                   if (parsed.ok) {
@@ -749,15 +984,39 @@ function TasksModal({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-2 border-t border-slate-800">
             <label>
               <span className={lbl}>taskDetails.center.x</span>
-              <input type="number" className={inp} value={centerX} onChange={(e) => setCenterX(e.target.value)} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                className={inp}
+                value={centerX}
+                onChange={(e) => setCenterX(sanitizeNonNegIntTyping(e.target.value))}
+              />
             </label>
             <label>
               <span className={lbl}>taskDetails.center.y</span>
-              <input type="number" className={inp} value={centerY} onChange={(e) => setCenterY(e.target.value)} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                className={inp}
+                value={centerY}
+                onChange={(e) => setCenterY(sanitizeNonNegIntTyping(e.target.value))}
+              />
             </label>
             <label>
               <span className={lbl}>taskDetails.radius</span>
-              <input type="number" className={inp} value={radius} onChange={(e) => setRadius(e.target.value)} />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                spellCheck={false}
+                className={inp}
+                value={radius}
+                onChange={(e) => setRadius(sanitizeNonNegIntTyping(e.target.value))}
+              />
             </label>
           </div>
         )}
@@ -781,155 +1040,33 @@ function TasksModal({
   );
 }
 
-function EventsModal({
-  modal,
-  onClose,
-  onSaved,
-  robotPick,
-}: {
-  modal: ModalState;
-  onClose: () => void;
-  onSaved: () => void;
-  robotPick: { id: string; name: string }[];
-}) {
-  const { mode, doc } = modal;
-  const [err, setErr] = useState<string | null>(null);
-  const [robotId, setRobotId] = useState(mode === 'edit' && doc ? refId(doc.robotId) : '');
-  const [type, setType] = useState(mode === 'edit' && doc ? String(doc.type ?? 'info') : 'info');
-  const [message, setMessage] = useState(mode === 'edit' && doc ? String(doc.message ?? '') : '');
-  const [description, setDescription] = useState(mode === 'edit' && doc ? String(doc.description ?? '') : '');
-  const [taskId, setTaskId] = useState(mode === 'edit' && doc ? refId(doc.taskId) : '');
-  const [gridFsFileId, setGridFsFileId] = useState(mode === 'edit' && doc ? refId(doc.gridFsFileId) : '');
-  const [timestamp, setTimestamp] = useState(
-    mode === 'edit' && doc ? dateToInput(doc.timestamp) : dateToInput(new Date().toISOString()),
-  );
-
-  const save = async () => {
-    setErr(null);
-    const rid = robotId.trim();
-    if (!rid) {
-      setErr('robotId is required');
-      return;
-    }
-    const ts = localInputToIso(timestamp);
-    if (!ts) {
-      setErr('Valid timestamp required');
-      return;
-    }
-    const p: Record<string, unknown> = {
-      robotId: rid,
-      type,
-      message: message.trim() || null,
-      description: description || null,
-      timestamp: ts,
-    };
-    if (taskId.trim()) {
-      p.taskId = taskId.trim();
-    } else {
-      p.taskId = null;
-    }
-    if (gridFsFileId.trim()) {
-      p.gridFsFileId = gridFsFileId.trim();
-    } else {
-      p.gridFsFileId = null;
-    }
-    try {
-      if (mode === 'create') {
-        await apiPost('/api/events', p);
-      } else if (doc) {
-        await apiPatch(`/api/events/${bsonId(doc)}`, p);
-      }
-      onSaved();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-4 space-y-3 shadow-xl">
-        <h3 className="text-sm font-semibold text-slate-100">{mode === 'create' ? 'New event' : 'Edit event'}</h3>
-        {err && <p className="text-xs text-red-400">{err}</p>}
-        <label>
-          <span className={lbl}>robotId</span>
-          <select className={inp} value={robotId} onChange={(e) => setRobotId(e.target.value)}>
-            <option value="">—</option>
-            {robotPick.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={lbl}>type</span>
-          <select className={inp} value={type} onChange={(e) => setType(e.target.value)}>
-            {EVENT_TYPES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className={lbl}>timestamp</span>
-          <input type="datetime-local" className={inp} value={timestamp} onChange={(e) => setTimestamp(e.target.value)} />
-        </label>
-        <label>
-          <span className={lbl}>message</span>
-          <textarea className={inp} rows={2} value={message} onChange={(e) => setMessage(e.target.value)} />
-        </label>
-        <label>
-          <span className={lbl}>description</span>
-          <textarea className={inp} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
-        </label>
-        <label>
-          <span className={lbl}>taskId (optional)</span>
-          <input className={inp} placeholder="ObjectId hex" value={taskId} onChange={(e) => setTaskId(e.target.value)} />
-        </label>
-        <label>
-          <span className={lbl}>gridFsFileId (optional)</span>
-          <input className={inp} placeholder="GridFS file ObjectId" value={gridFsFileId} onChange={(e) => setGridFsFileId(e.target.value)} />
-        </label>
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" className="text-xs px-3 py-1.5 rounded border border-slate-600 text-slate-400" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="button" className="text-xs px-3 py-1.5 rounded bg-[#137fec] text-white font-medium" onClick={() => void save()}>
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ObstaclesModal({
   modal,
   onClose,
   onSaved,
+  onOpenObstacleMapPicker,
 }: {
   modal: ModalState;
   onClose: () => void;
   onSaved: () => void;
+  onOpenObstacleMapPicker?: (payload: MapPickerObstaclePayload) => void;
 }) {
   const { mode, doc } = modal;
   const seed = (doc ?? {}) as Record<string, unknown>;
   const [err, setErr] = useState<string | null>(null);
   const [name, setName] = useState(String(seed.name ?? ''));
   const [pointsJson, setPointsJson] = useState(
-    seed.points ? JSON.stringify(seed.points) : '[[0,0],[10,0],[10,5],[0,5],[0,0]]',
+    seed.points
+      ? sanitizeBracketPointsTyping(JSON.stringify(seed.points))
+      : '[[0,0],[10,0],[10,5],[0,5],[0,0]]',
   );
-  const [minX, setMinX] = useState(String(seed.minX ?? 0));
-  const [maxX, setMaxX] = useState(String(seed.maxX ?? 10));
-  const [minY, setMinY] = useState(String(seed.minY ?? 0));
-  const [maxY, setMaxY] = useState(String(seed.maxY ?? 5));
   const [active, setActive] = useState(seed.active == null ? true : Boolean(seed.active));
-  const [polyPoints, setPolyPoints] = useState<{ x: number; y: number }[]>(() => {
+
+  const boundsPreview = useMemo(() => {
     const parsed = parseObstaclePoints(pointsJson);
-    if (!parsed.ok) return [];
-    return parsed.points.map(([x, y]) => ({ x, y }));
-  });
+    if (!parsed.ok) return null;
+    return obstacleBounds(parsed.points);
+  }, [pointsJson]);
 
   const save = async () => {
     setErr(null);
@@ -952,10 +1089,10 @@ function ObstaclesModal({
     const payload = {
       name: n || null,
       points: parsed.points,
-      minX: Number.isFinite(Number(minX)) ? clampInt(Number(minX)) : b.minX,
-      maxX: Number.isFinite(Number(maxX)) ? clampInt(Number(maxX)) : b.maxX,
-      minY: Number.isFinite(Number(minY)) ? clampInt(Number(minY)) : b.minY,
-      maxY: Number.isFinite(Number(maxY)) ? clampInt(Number(maxY)) : b.maxY,
+      minX: b.minX,
+      maxX: b.maxX,
+      minY: b.minY,
+      maxY: b.maxY,
       active,
     };
     try {
@@ -973,51 +1110,63 @@ function ObstaclesModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-4 space-y-3 shadow-xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-sm font-semibold text-slate-100">{mode === 'create' ? 'New obstacle' : 'Edit obstacle'}</h3>
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-slate-100">{mode === 'create' ? 'New obstacle' : 'Edit obstacle'}</h3>
+          {onOpenObstacleMapPicker && (
+            <button
+              type="button"
+              className="text-xs px-3 py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-800 shrink-0"
+              onClick={() => {
+                const parsed = parseObstaclePoints(pointsJson);
+                const obstacleDraftPts = parsed.ok ? obstaclePairsToDraftPts(parsed.points) : [];
+                const baseDoc = doc && mode === 'edit' ? { ...doc } : {};
+                const n = name.trim();
+                const seedDocSnapshot: Record<string, unknown> = {
+                  ...baseDoc,
+                  name: n || null,
+                  active,
+                  ...(parsed.ok ? { points: parsed.points } : {}),
+                };
+                onOpenObstacleMapPicker({
+                  resume: {
+                    modalMode: mode === 'edit' ? 'edit' : 'create',
+                    seedDoc: seedDocSnapshot,
+                  },
+                  obstacleDraftPts,
+                });
+              }}
+              title="Switch to Map and pick polygon vertices by clicks"
+            >
+              Open map picker
+            </button>
+          )}
+        </div>
         {err && <p className="text-xs text-red-400">{err}</p>}
         <label>
           <span className={lbl}>name</span>
           <input className={inp} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label>
-          <span className={lbl}>points (JSON)</span>
+          <span className={lbl}>points ([[x,y],…])</span>
           <textarea
             className={inp}
             rows={10}
             value={pointsJson}
             onChange={(e) => {
-              const v = e.target.value;
+              const v = sanitizeBracketPointsTyping(e.target.value);
               setPointsJson(v);
-              const parsed2 = parseObstaclePoints(v);
-              if (parsed2.ok) {
-                const next = parsed2.points.map(([x, y]) => ({ x, y }));
-                setPolyPoints(next);
-                const bb = obstacleBounds(parsed2.points);
-                setMinX(String(bb.minX));
-                setMaxX(String(bb.maxX));
-                setMinY(String(bb.minY));
-                setMaxY(String(bb.maxY));
-              }
             }}
           />
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label>
-            <span className={lbl}>minX</span>
-            <input type="number" className={inp} value={minX} onChange={(e) => setMinX(e.target.value)} />
-          </label>
-          <label>
-            <span className={lbl}>maxX</span>
-            <input type="number" className={inp} value={maxX} onChange={(e) => setMaxX(e.target.value)} />
-          </label>
-          <label>
-            <span className={lbl}>minY</span>
-            <input type="number" className={inp} value={minY} onChange={(e) => setMinY(e.target.value)} />
-          </label>
-          <label>
-            <span className={lbl}>maxY</span>
-            <input type="number" className={inp} value={maxY} onChange={(e) => setMaxY(e.target.value)} />
-          </label>
+        <div className="rounded-lg border border-slate-700/80 bg-slate-950/50 px-3 py-2 text-[11px] text-slate-400 space-y-1">
+          <div className="font-medium text-slate-500 uppercase tracking-wide">Bounding box</div>
+          {boundsPreview ? (
+            <div className="font-mono text-slate-300">
+              minX {boundsPreview.minX} · maxX {boundsPreview.maxX} · minY {boundsPreview.minY} · maxY {boundsPreview.maxY}
+            </div>
+          ) : (
+            <div className="text-slate-500">Fix points JSON to see bounds</div>
+          )}
         </div>
         <label className="flex items-center gap-2 text-xs text-slate-300">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

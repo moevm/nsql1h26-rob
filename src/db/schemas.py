@@ -1,5 +1,7 @@
 """JSON Schema ($jsonSchema) для валидации документов MongoDB."""
 
+DESCRIPTION_MAX_LENGTH = 512
+
 _EVENT_TYPES = [
     "battery_low",
     "battery_critical",
@@ -34,7 +36,7 @@ GROUPS_JSON_SCHEMA = {
     "properties": {
         "_id": {"bsonType": "objectId"},
         "name": {"bsonType": "string", "minLength": 1},
-        "description": {"bsonType": ["string", "null"]},
+        "description": {"bsonType": ["string", "null"], "maxLength": DESCRIPTION_MAX_LENGTH},
         "status": {
             "bsonType": "string",
             "enum": ["active", "inactive", "paused", "error"],
@@ -56,6 +58,10 @@ ROBOTS_JSON_SCHEMA = {
         "groupId": {"bsonType": "objectId"},
         "groupName": {"bsonType": ["string", "null"]},
         "model": {"bsonType": "string", "minLength": 1},
+        "robotStatus": {
+            "bsonType": "string",
+            "enum": ["online", "offline"],
+        },
         "coordinates": {
             "bsonType": ["object", "null"],
             "additionalProperties": False,
@@ -94,7 +100,7 @@ EVENTS_JSON_SCHEMA = {
             },
         },
         "gridFsFileId": {"bsonType": ["objectId", "null"]},
-        "description": {"bsonType": ["string", "null"]},
+        "description": {"bsonType": ["string", "null"], "maxLength": DESCRIPTION_MAX_LENGTH},
         "timestamp": {"bsonType": "date"},
         "createdAt": {"bsonType": ["date", "null"]},
     },
