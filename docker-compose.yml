@@ -27,7 +27,6 @@ services:
       init:
         condition: service_completed_successfully
     healthcheck:
-      # Проверяем просто открытие порта (самый надежный метод, не зависит от прав доступа)
      test: ["CMD", "python3", "-c", "import socket; s = socket.socket(); s.connect(('localhost', 8000))"]
      interval: 10s
      timeout: 5s
