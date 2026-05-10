@@ -1,6 +1,6 @@
 services:
   db:
-    image: mongo:7
+    image: mongo:7.0.15
     restart: unless-stopped
     volumes:
       - mongo_data:/data/db
@@ -26,6 +26,23 @@ services:
         condition: service_healthy
       init:
         condition: service_completed_successfully
+    healthcheck:
+     test: ["CMD", "python3", "-c", "import socket; s = socket.socket(); s.connect(('localhost', 8000))"]
+     interval: 10s
+     timeout: 5s
+     retries: 5
+
+  simulator:
+    build:
+      context: .
+      dockerfile: src/bot/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - API_URL=http://web:8000/api
+    depends_on:
+      web:
+        condition: service_healthy
 
 volumes:
   mongo_data:

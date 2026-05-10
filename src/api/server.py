@@ -60,8 +60,7 @@ def _mount_static():
 _mount_static()
 
 
-@app.get("/")
-def spa_index():
+def _spa_index_response():
     index = _DIST / "index.html"
     if index.is_file():
         return FileResponse(index)
@@ -69,3 +68,16 @@ def spa_index():
         "Сборка фронта не найдена (frontend/dist). Нужно выполнить: cd frontend && npm install && npm run build",
         status_code=503,
     )
+
+
+@app.get("/")
+def spa_index():
+    return _spa_index_response()
+
+
+@app.get("/{full_path:path}")
+def spa_fallback(full_path: str):
+    """React Router: прямой заход или обновление страницы на /dashboard и т.д."""
+    if full_path.startswith("api/"):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return _spa_index_response()

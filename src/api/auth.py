@@ -12,6 +12,9 @@ from src.db.database import get_db
 
 _PBKDF2_ITERS_DEFAULT = 210_000
 
+# Same message for unknown user and wrong password (avoid account enumeration).
+_AUTH_BAD_CREDENTIALS = "Invalid username or password"
+
 
 def _b64u_decode(s):
     pad = "=" * ((4 - len(s) % 4) % 4)
@@ -80,13 +83,16 @@ def decode_token(token):
 
 
 def authenticate(username, password):
-    u = get_db()["users"].find_one({"username": username, "active": True})
+    coll = get_db()["users"]
+    u = coll.find_one({"username": username})
     if not u:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail=_AUTH_BAD_CREDENTIALS)
+    if u.get("active") is False:
+        raise HTTPException(status_code=401, detail="Account disabled")
     if not verify_password(password, str(u.get("passwordHash", ""))):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail=_AUTH_BAD_CREDENTIALS)
     role = str(u.get("role") or "user")
     if role not in ("admin", "user"):
         role = "user"
-    return {"username": username, "role": role}
+    return {"username": str(u.get("username") or username), "role": role}
 

@@ -72,5 +72,33 @@
     "message": "Camera snapshot from front RGB (seed).",
     "description": "Second seed frame for demo navigation event ↔ file.",
     "timestamp": {"$date": "2026-03-11T11:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439048"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439026"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439034"},
+    "type": "task_start",
+    "message": "Dock relay mission armed.",
+    "description": "Operator cleared dock lane before departure.",
+    "timestamp": {"$date": "2026-03-14T09:05:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439049"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439025"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439035"},
+    "type": "info",
+    "message": "Approach corridor cleared.",
+    "description": "Planner cleared static obstacles along approach strip.",
+    "timestamp": {"$date": "2026-03-15T22:02:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439050"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439027"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439036"},
+    "type": "metric_change",
+    "message": "CPU load spike during scan.",
+    "description": "Transient peak during radius sweep on lab firmware.",
+    "metric": {"key": "cpu_pct", "from": 34, "to": 78},
+    "timestamp": {"$date": "2026-03-16T10:08:00.000Z"}
   }
 ]

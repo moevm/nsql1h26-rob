@@ -1,4 +1,4 @@
-FROM node:22-bookworm AS frontend-build
+FROM node:22.12.0-bookworm AS frontend-build
 
 WORKDIR /fe
 COPY frontend/package.json ./
@@ -6,7 +6,7 @@ RUN npm install
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.12-slim
+FROM python:3.12.8-slim-bookworm
 
 WORKDIR /app
 
