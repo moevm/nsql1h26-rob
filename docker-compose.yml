@@ -7,14 +7,6 @@ services:
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
 
-  init:
-    build: .
-    env_file: .env
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["python", "-m", "src.db.init_db"]
-
   web:
     build: .
     restart: unless-stopped
@@ -24,8 +16,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      init:
-        condition: service_completed_successfully
     healthcheck:
      test: ["CMD", "python3", "-c", "import socket; s = socket.socket(); s.connect(('localhost', 8000))"]
      interval: 10s
