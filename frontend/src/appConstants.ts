@@ -46,9 +46,9 @@ export const COLS: Record<EntityKey, string[]> = {
 
 export const LIST_COLS: Record<EntityKey, string[]> = {
   groups: ['name', 'status', 'updatedAt'],
-  robots: ['name', 'model', 'groupName', 'robotStatus', 'scanRadius', 'updatedAt'],
+  robots: ['name', 'model', 'groupName', 'robotStatus', 'scanRadius', 'weight', 'createdAt', 'updatedAt'],
   tasks: ['name', 'type', 'taskStatus', 'groupName', 'updatedAt'],
-  events: ['type', 'message', 'timestamp'],
+  events: ['type', 'message', 'description', 'timestamp'],
   obstacles: ['name', 'active', 'updatedAt'],
   files: ['preview', 'filename', 'length', 'taskId', 'uploadDate'],
 };
@@ -65,6 +65,12 @@ export const LIST_LINK_COL: Record<EntityKey, string> = {
 export function listColumnHeader(tab: EntityKey, col: string): string {
   if (tab === 'robots' && col === 'robotStatus') {
     return 'status';
+  }
+  if (tab === 'robots' && col === 'weight') {
+    return 'WEIGHT';
+  }
+  if (tab === 'robots' && col === 'createdAt') {
+    return 'CREATED';
   }
   return col;
 }
