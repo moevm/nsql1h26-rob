@@ -30,6 +30,9 @@ services:
     env_file: .env
     environment:
       - API_URL=http://web:8000/api
+      - BOT_PATH_STRIDE=2
+      - BOT_LOOP_SLEEP_SEC=0.8
+      - BOT_BATTERY_DRAIN=0.25
     depends_on:
       web:
         condition: service_healthy
