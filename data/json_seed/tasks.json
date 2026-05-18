@@ -8,17 +8,23 @@
     "taskStatus": "active",
     "taskDetails": {
       "route": [
-        {"x": 0, "y": 10},
-        {"x": 5, "y": 10},
-        {"x": 10, "y": 12}
+        {"x": 10, "y": 10},
+        {"x": 22, "y": 10},
+        {"x": 28, "y": 14},
+        {"x": 22, "y": 18},
+        {"x": 12, "y": 16},
+        {"x": 10, "y": 10}
       ],
-      "until": {"$date": "2026-04-01T08:00:00.000Z"}
+      "until": {"$date": "2027-06-01T08:00:00.000Z"}
     },
     "plannedRoute": {
       "points": [
-        [0, 10],
-        [5, 10],
-        [10, 12]
+        [10, 10],
+        [22, 10],
+        [28, 14],
+        [22, 18],
+        [12, 16],
+        [10, 10]
       ]
     },
     "executionRobots": [
@@ -69,12 +75,12 @@
     "type": "moveToTarget",
     "taskStatus": "completed",
     "taskDetails": {
-      "targetPosition": {"x": 100, "y": 50}
+      "targetPosition": {"x": 38, "y": 31}
     },
     "plannedRoute": {
       "points": [
-        [80, 45],
-        [100, 50]
+        [35, 31],
+        [38, 31]
       ]
     },
     "executionRobots": [
@@ -99,13 +105,25 @@
     "taskStatus": "active",
     "taskDetails": {
       "route": [
-        {"x": 44, "y": 17},
-        {"x": 46, "y": 19},
-        {"x": 48, "y": 17}
+        {"x": 36, "y": 10},
+        {"x": 36, "y": 16},
+        {"x": 36, "y": 20},
+        {"x": 38, "y": 20},
+        {"x": 38, "y": 12},
+        {"x": 36, "y": 10}
       ],
-      "until": {"$date": "2026-05-01T08:00:00.000Z"}
+      "until": {"$date": "2027-06-01T08:00:00.000Z"}
     },
-    "plannedRoute": {"points": [[44, 17], [46, 19], [48, 17]]},
+    "plannedRoute": {
+      "points": [
+        [36, 10],
+        [36, 16],
+        [36, 20],
+        [38, 20],
+        [38, 12],
+        [36, 10]
+      ]
+    },
     "executionRobots": [
       {
         "robotId": {"$oid": "507f1f77bcf86cd799439026"},
@@ -147,7 +165,7 @@
     "groupId": {"$oid": "507f1f77bcf86cd799439016"},
     "groupName": "R&D Lab",
     "type": "scanRadius",
-    "taskStatus": "active",
+    "taskStatus": "paused",
     "taskDetails": {"center": {"x": 52, "y": 38}, "radius": 6},
     "plannedRoute": {"points": [[52, 38]]},
     "executionRobots": [
@@ -155,7 +173,7 @@
         "robotId": {"$oid": "507f1f77bcf86cd799439027"},
         "assignedAt": {"$date": "2026-03-16T10:00:00.000Z"},
         "removedAt": null,
-        "status": "working"
+        "status": "assigned"
       }
     ],
     "startTime": {"$date": "2026-03-16T10:00:00.000Z"},
@@ -179,5 +197,27 @@
     "endTime": {"$date": "2026-03-17T07:45:00.000Z"},
     "createdAt": {"$date": "2026-03-17T07:00:00.000Z"},
     "updatedAt": {"$date": "2026-03-17T07:50:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439038"},
+    "name": "Hub shuttle",
+    "groupId": {"$oid": "507f1f77bcf86cd799439013"},
+    "groupName": "Logistics Hub",
+    "type": "moveToTarget",
+    "taskStatus": "cancelled",
+    "taskDetails": {"targetPosition": {"x": 33, "y": 29}},
+    "plannedRoute": {"points": [[33, 29]]},
+    "executionRobots": [
+      {
+        "robotId": {"$oid": "507f1f77bcf86cd799439024"},
+        "assignedAt": {"$date": "2026-03-17T09:00:00.000Z"},
+        "removedAt": {"$date": "2026-03-17T09:30:00.000Z"},
+        "status": "removed"
+      }
+    ],
+    "startTime": {"$date": "2026-03-17T09:00:00.000Z"},
+    "endTime": {"$date": "2026-03-17T09:30:00.000Z"},
+    "createdAt": {"$date": "2026-03-17T09:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-17T09:35:00.000Z"}
   }
 ]
