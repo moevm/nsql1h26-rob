@@ -66,7 +66,15 @@ export function buildQuery(params: Record<string, string | number | boolean | un
   return u.toString();
 }
 
-export async function apiList(path: string, params: Record<string, string | number | boolean | undefined | null>): Promise<unknown[]> {
+export type PagedList<T = unknown> = {
+  items: T[];
+  total: number;
+};
+
+export async function apiListPaged(
+  path: string,
+  params: Record<string, string | number | boolean | undefined | null>,
+): Promise<PagedList> {
   const q = buildQuery(params);
   const url = q ? `${BASE}${path}?${q}` : `${BASE}${path}`;
   const res = await fetch(url, {
@@ -76,7 +84,18 @@ export async function apiList(path: string, params: Record<string, string | numb
   if (!res.ok) {
     throw new Error(await errText(res));
   }
-  return res.json() as Promise<unknown[]>;
+  const items = (await res.json()) as unknown[];
+  const totalHdr = res.headers.get('X-Total-Count');
+  const total = totalHdr != null && totalHdr !== '' ? Number(totalHdr) : items.length;
+  return {
+    items,
+    total: Number.isFinite(total) && total >= 0 ? total : items.length,
+  };
+}
+
+export async function apiList(path: string, params: Record<string, string | number | boolean | undefined | null>): Promise<unknown[]> {
+  const { items } = await apiListPaged(path, params);
+  return items;
 }
 
 export async function apiGetOne(path: string): Promise<Record<string, unknown>> {

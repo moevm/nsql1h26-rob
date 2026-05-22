@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Database, Trash2 } from 'lucide-react';
 import { PageJumpInput } from '../components/PageJumpInput';
+import { PageSizeInput } from '../components/PageSizeInput';
 import {
   ENTITY_LABEL,
   LIST_COLS,
@@ -32,6 +33,7 @@ export function EntityListPage() {
     loading: boolean;
     rows: Record<string, unknown>[];
     pageSize: number;
+    listTotal: number;
     setFilters: React.Dispatch<React.SetStateAction<ReturnType<typeof emptyFilters>>>;
     err: string | null;
     goToRef: (target: EntityKey, docId: string) => void;
@@ -72,6 +74,7 @@ export function EntityListPage() {
     loading,
     rows,
     pageSize,
+    listTotal,
     setFilters,
     err,
     goToRef,
@@ -85,6 +88,8 @@ export function EntityListPage() {
 
   const listCols = LIST_COLS[tab];
   const linkCol = LIST_LINK_COL[tab];
+  const totalPages = Math.max(1, Math.ceil(listTotal / pageSize));
+  const onLastPage = pageIndex >= totalPages - 1;
 
   function dataCellClass(col: string) {
     if (col === 'name') {
@@ -170,12 +175,12 @@ export function EntityListPage() {
               <ChevronRight className="w-4 h-4 rotate-180" />
             </button>
             <span className="min-w-[5rem] text-center text-[10px] font-bold px-2 py-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-              Page {pageIndex + 1}
+              Page {pageIndex + 1} / {totalPages}
             </span>
             <button
               type="button"
               className="p-1.5 rounded-md bg-slate-800 border border-slate-700 text-slate-400 hover:text-white disabled:opacity-30 transition-all"
-              disabled={loading || rows.length < pageSize}
+              disabled={loading || onLastPage}
               onClick={() => setPageIndex(pageIndex + 1)}
               title="Next page"
             >
@@ -193,25 +198,17 @@ export function EntityListPage() {
             </label>
             <label className="flex items-center gap-1 text-xs text-slate-500">
               per_page
-              <select
-                className="bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-200"
-                value={String(pageSize)}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  const safe = Number.isFinite(n) ? Math.min(Math.max(Math.floor(n), 1), 100) : 10;
+              <PageSizeInput
+                pageSize={pageSize}
+                onCommit={(safe) => {
                   setFilters((prev) => ({
                     ...prev,
                     [tab]: { ...prev[tab], limit: String(safe), skip: '0' },
                   }));
                   bump();
                 }}
-              >
-                {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                className="w-16 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-200"
+              />
             </label>
           </div>
         </div>
@@ -227,7 +224,7 @@ export function EntityListPage() {
               <h3 className="font-bold text-sm text-slate-100 truncate">{ENTITY_LABEL[tab]}</h3>
             </div>
             <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 shrink-0">
-              {loading ? 'Loading…' : `${rows.length} record${rows.length === 1 ? '' : 's'}`}
+              {loading ? 'Loading…' : `${listTotal} total · showing ${rows.length} on this page`}
             </span>
           </div>
           <div className="flex-1 overflow-x-auto custom-scrollbar">

@@ -4,6 +4,7 @@ import {
   apiDelete,
   apiGetOne,
   apiList,
+  apiListPaged,
   getAuthRole,
   getAuthUsername,
   setAuthRole,
@@ -66,6 +67,7 @@ import { EntityGuard } from './pages/EntityGuard';
 import { EntityListPage } from './pages/EntityListPage';
 import { MapPage } from './pages/MapPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { StatisticsPage } from './pages/StatisticsPage';
 
 
 export default function MissionApp() {
@@ -122,6 +124,7 @@ export default function MissionApp() {
     })();
   }, [pathEntityDetail.entity, detailRouteId, version, location.pathname]);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [listTotal, setListTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<null | { entity: EntityKey; doc: Record<string, unknown> }>(null);
@@ -203,7 +206,7 @@ export default function MissionApp() {
   const [mapPickLayer, setMapPickLayer] = useState<MapPickLayer>('all');
 
   const pageSize = useMemo(() => {
-    if (tab === 'map' || tab === 'home' || tab === 'settings') {
+    if (tab === 'map' || tab === 'home' || tab === 'settings' || tab === 'statistics') {
       return 10;
     }
     const raw = filters[tab].limit;
@@ -215,7 +218,7 @@ export default function MissionApp() {
   }, [filters, tab]);
 
   const pageIndex = useMemo(() => {
-    if (tab === 'map' || tab === 'home' || tab === 'settings') {
+    if (tab === 'map' || tab === 'home' || tab === 'settings' || tab === 'statistics') {
       return 0;
     }
     const raw = filters[tab].skip;
@@ -228,7 +231,7 @@ export default function MissionApp() {
 
   const setPageIndex = useCallback(
     (idx: number) => {
-      if (tab === 'map' || tab === 'home' || tab === 'settings') {
+      if (tab === 'map' || tab === 'home' || tab === 'settings' || tab === 'statistics') {
         return;
       }
       const safe = Math.max(0, Math.floor(idx));
@@ -312,7 +315,7 @@ export default function MissionApp() {
     try {
       localStorage.setItem(MAP_VIEW_STORAGE_KEY, JSON.stringify({ zoom: mapZoom, offset: mapOffset }));
     } catch {
-      /* ignore quota / private mode */
+      
     }
   }, [mapZoom, mapOffset]);
 
@@ -350,9 +353,10 @@ export default function MissionApp() {
   }, [tab, version]);
 
   const loadRows = useCallback(async () => {
-    if (tab === 'map' || tab === 'home' || tab === 'settings') {
+    if (tab === 'map' || tab === 'home' || tab === 'settings' || tab === 'statistics') {
       setLoading(false);
       setErr(null);
+      setListTotal(0);
       return;
     }
     setLoading(true);
@@ -473,11 +477,13 @@ export default function MissionApp() {
         };
       }
       const endpoint = tab === 'files' ? '/api/gridfs/files' : `/api/${tab}`;
-      const data = (await apiList(endpoint, params)) as unknown;
-      setRows(Array.isArray(data) ? (data as Record<string, unknown>[]) : []);
+      const { items, total } = await apiListPaged(endpoint, params);
+      setRows(Array.isArray(items) ? (items as Record<string, unknown>[]) : []);
+      setListTotal(total);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setRows([]);
+      setListTotal(0);
     } finally {
       setLoading(false);
     }
@@ -1380,6 +1386,7 @@ export default function MissionApp() {
     setPageIndex,
     loading,
     rows,
+    listTotal,
     pageSize,
     setFilters,
     err,
@@ -1442,6 +1449,7 @@ export default function MissionApp() {
         <AppShell onLogout={doLogout} userRole={userRole} username={username}>
           <Routes>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/statistics" element={<StatisticsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/map" element={<MapPage />} />
             <Route
