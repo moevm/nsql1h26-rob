@@ -192,16 +192,16 @@ export function refEntityForFieldKey(fieldKey: string): EntityKey | null {
   return REF_TAB[fieldKey] ?? null;
 }
 
-export type AppTabKey = EntityKey | 'map' | 'home' | 'settings';
+export type AppTabKey = EntityKey | 'map' | 'home' | 'settings' | 'statistics';
 
 export function isEntityKeyTab(t: AppTabKey): t is EntityKey {
-  return t !== 'map' && t !== 'home' && t !== 'settings';
+  return t !== 'map' && t !== 'home' && t !== 'settings' && t !== 'statistics';
 }
 
 export const TAB_QS = 'tab';
 export const DETAIL_QS = 'id';
 
-export const URL_TAB_ORDER: AppTabKey[] = ['home', 'groups', 'robots', 'tasks', 'events', 'obstacles', 'files', 'map', 'settings'];
+export const URL_TAB_ORDER: AppTabKey[] = ['home', 'statistics', 'groups', 'robots', 'tasks', 'events', 'obstacles', 'files', 'map', 'settings'];
 
 export function isUrlTab(s: string): s is AppTabKey {
   return (URL_TAB_ORDER as readonly string[]).includes(s);
