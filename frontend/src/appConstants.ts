@@ -46,9 +46,9 @@ export const COLS: Record<EntityKey, string[]> = {
 
 export const LIST_COLS: Record<EntityKey, string[]> = {
   groups: ['name', 'status', 'updatedAt'],
-  robots: ['name', 'model', 'groupName', 'robotStatus', 'scanRadius', 'weight', 'createdAt', 'updatedAt'],
-  tasks: ['name', 'type', 'taskStatus', 'groupName', 'updatedAt'],
-  events: ['type', 'message', 'description', 'timestamp'],
+  robots: ['name', 'model', 'groupName', 'groupId', 'robotStatus', 'scanRadius', 'weight', 'createdAt', 'updatedAt'],
+  tasks: ['name', 'type', 'taskStatus', 'groupName', 'groupId', 'updatedAt'],
+  events: ['type', 'message', 'description', 'robotId', 'taskId', 'gridFsFileId', 'timestamp'],
   obstacles: ['name', 'active', 'updatedAt'],
   files: ['preview', 'filename', 'length', 'taskId', 'uploadDate'],
 };
@@ -147,6 +147,8 @@ export function emptyFilters(): Record<EntityKey, Record<string, string>> {
       grid_fs_file_id: '',
       timestamp_after: '',
       timestamp_before: '',
+      created_after: '',
+      created_before: '',
       doc_id: '',
       skip: '0',
       limit: '10',
@@ -190,6 +192,26 @@ export const REF_TAB: Partial<Record<string, EntityKey>> = {
 
 export function refEntityForFieldKey(fieldKey: string): EntityKey | null {
   return REF_TAB[fieldKey] ?? null;
+}
+
+export function listHasRefColumns(tab: EntityKey): boolean {
+  return LIST_COLS[tab].some((col) => refEntityForFieldKey(col) != null);
+}
+
+export type RefNameLookup = {
+  groupById: Map<string, string>;
+  robotById: Map<string, string>;
+  taskById: Map<string, string>;
+  fileById: Map<string, string>;
+};
+
+export function refDisplayLabelForColumn(columnKey: string, docId: string, lookup: RefNameLookup): string | undefined {
+  if (!docId) return undefined;
+  if (columnKey === 'groupId') return lookup.groupById.get(docId);
+  if (columnKey === 'robotId') return lookup.robotById.get(docId);
+  if (columnKey === 'taskId') return lookup.taskById.get(docId);
+  if (columnKey === 'gridFsFileId') return lookup.fileById.get(docId);
+  return undefined;
 }
 
 export type AppTabKey = EntityKey | 'map' | 'home' | 'settings' | 'statistics';

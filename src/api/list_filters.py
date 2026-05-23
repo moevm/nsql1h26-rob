@@ -204,6 +204,8 @@ def events_filter(
     doc_id: str | None = None,
     timestamp_after: str | None = None,
     timestamp_before: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
 ) -> dict:
     parts = []
     if event_type:
@@ -224,6 +226,11 @@ def events_filter(
         parts.append({"timestamp": {"$gte": ta}})
     if tb:
         parts.append({"timestamp": {"$lte": tb}})
+    ca, cb = parse_dt(created_after), parse_dt(created_before)
+    if ca:
+        parts.append({"createdAt": {"$gte": ca}})
+    if cb:
+        parts.append({"createdAt": {"$lte": cb}})
     return {"$and": parts} if parts else {}
 
 

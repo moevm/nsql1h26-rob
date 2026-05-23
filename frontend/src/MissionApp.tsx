@@ -130,6 +130,7 @@ export default function MissionApp() {
   const [deleteConfirm, setDeleteConfirm] = useState<null | { entity: EntityKey; doc: Record<string, unknown> }>(null);
   const [groupPick, setGroupPick] = useState<{ id: string; name: string }[]>([]);
   const [robotPick, setRobotPick] = useState<{ id: string; name: string }[]>([]);
+  const [refShowNames, setRefShowNames] = useState(false);
   const [taskPick, setTaskPick] = useState<{ id: string; name: string }[]>([]);
   const [gridFsFilePick, setGridFsFilePick] = useState<{ id: string; name: string }[]>([]);
   const [mapRobots, setMapRobots] = useState<Record<string, unknown>[]>([]);
@@ -444,6 +445,8 @@ export default function MissionApp() {
           gridFsFileId: f.grid_fs_file_id?.trim() || undefined,
           timestampAfter: localInputToIso(f.timestamp_after),
           timestampBefore: localInputToIso(f.timestamp_before),
+          created_after: localInputToIso(f.created_after),
+          created_before: localInputToIso(f.created_before),
           docId: safeEventDocId || undefined,
         };
       } else if (tab === 'obstacles') {
@@ -909,6 +912,14 @@ export default function MissionApp() {
           <label>
             <span className={FILTER_LBL}>timestamp_before</span>
             <input type="datetime-local" className={dateInputClass(f.timestamp_before)} value={f.timestamp_before} onChange={(e) => setF('timestamp_before', e.target.value)} />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>created_after</span>
+            <input type="datetime-local" className={dateInputClass(f.created_after)} value={f.created_after} onChange={(e) => setF('created_after', e.target.value)} />
+          </label>
+          <label>
+            <span className={FILTER_LBL}>created_before</span>
+            <input type="datetime-local" className={dateInputClass(f.created_before)} value={f.created_before} onChange={(e) => setF('created_before', e.target.value)} />
           </label>
         </div>
       );
@@ -1441,6 +1452,12 @@ export default function MissionApp() {
     mapPickLayer,
     setMapPickLayer,
     navigate,
+    robotPick,
+    taskPick,
+    refShowNames,
+    setRefShowNames,
+    groupPick,
+    gridFsFilePick,
   };
 
   return (

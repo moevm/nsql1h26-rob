@@ -19,7 +19,7 @@ _AXIS_FIELDS: dict[str, frozenset[str]] = {
     "groups": frozenset({"name", "status"}),
     "robots": frozenset({"scanRadius", "weight", "model", "groupName", "robotStatus", "name"}),
     "tasks": frozenset({"type", "taskStatus", "groupName", "name"}),
-    "events": frozenset({"type", "message", "description", "robotId", "taskId"}),
+    "events": frozenset({"type", "message", "description", "robotId", "taskId", "robotName", "taskName"}),
     "obstacles": frozenset({"name", "active"}),
 }
 
@@ -46,28 +46,62 @@ def _label_max_len(coll_key: str, field: str) -> int:
     return _LABEL_MAX_LEN.get((coll_key, field), _DEFAULT_LABEL_MAX)
 
 
-def _value_to_string_expr(path: str) -> dict:
+def _value_to_string_expr(source_expr) -> dict:
     return {
         "$switch": {
             "branches": [
-                {"case": {"$in": [{"$type": path}, ["null", "missing"]]}, "then": ""},
-                {"case": {"$eq": [{"$type": path}, "bool"]}, "then": {"$cond": [path, "true", "false"]}},
-                {"case": {"$eq": [{"$type": path}, "objectId"]}, "then": {"$toString": path}},
-                {"case": {"$eq": [{"$type": path}, "date"]}, "then": {"$dateToString": {"format": "%Y-%m-%d %H:%M", "date": path}}},
+                {"case": {"$in": [{"$type": source_expr}, ["null", "missing"]]}, "then": ""},
+                {"case": {"$eq": [{"$type": source_expr}, "bool"]}, "then": {"$cond": [source_expr, "true", "false"]}},
+                {"case": {"$eq": [{"$type": source_expr}, "objectId"]}, "then": {"$toString": source_expr}},
                 {
-                    "case": {"$in": [{"$type": path}, ["int", "long", "double", "decimal"]]},
-                    "then": {"$toString": path},
+                    "case": {"$eq": [{"$type": source_expr}, "date"]},
+                    "then": {"$dateToString": {"format": "%Y-%m-%d %H:%M", "date": source_expr}},
+                },
+                {
+                    "case": {"$in": [{"$type": source_expr}, ["int", "long", "double", "decimal"]]},
+                    "then": {"$toString": source_expr},
                 },
             ],
-            "default": {"$toString": path},
+            "default": {"$toString": source_expr},
         }
     }
 
 
+def _axis_source_expr(coll_key: str, field: str):
+    if coll_key == "robots" and field == "robotStatus":
+        return {"$ifNull": ["$robotStatus", "online"]}
+    if coll_key == "events" and field == "robotName":
+        return "$_robotName"
+    if coll_key == "events" and field == "taskName":
+        return "$_taskName"
+    return f"${field}"
+
+
+def _lookup_stages(coll_key: str, x_field: str, y_field: str) -> list:
+    if coll_key != "events":
+        return []
+    stages = []
+    if x_field == "robotName" or y_field == "robotName":
+        stages.extend(
+            [
+                {"$lookup": {"from": "robots", "localField": "robotId", "foreignField": "_id", "as": "_robotLk"}},
+                {"$addFields": {"_robotName": {"$ifNull": [{"$arrayElemAt": ["$_robotLk.name", 0]}, ""]}}},
+            ]
+        )
+    if x_field == "taskName" or y_field == "taskName":
+        stages.extend(
+            [
+                {"$lookup": {"from": "tasks", "localField": "taskId", "foreignField": "_id", "as": "_taskLk"}},
+                {"$addFields": {"_taskName": {"$ifNull": [{"$arrayElemAt": ["$_taskLk.name", 0]}, ""]}}},
+            ]
+        )
+    return stages
+
+
 def _axis_expr(coll_key: str, field: str) -> dict:
-    path = f"${field}"
+    src = _axis_source_expr(coll_key, field)
     max_len = _label_max_len(coll_key, field)
-    trimmed = {"$trim": {"input": _value_to_string_expr(path)}}
+    trimmed = {"$trim": {"input": _value_to_string_expr(src)}}
     return {
         "$let": {
             "vars": {"s": trimmed},
@@ -229,6 +263,8 @@ def stats_chart(
             doc_id=doc_id,
             timestamp_after=timestamp_after,
             timestamp_before=timestamp_before,
+            created_after=created_after,
+            created_before=created_before,
         )
     else:
         filt = obstacles_filter(
@@ -249,16 +285,19 @@ def stats_chart(
     coll = _coll(coll_key)
     matched_total = coll.count_documents(filt)
 
-    pipeline = [
-        {"$match": filt},
-        {
-            "$project": {
-                "_x": _axis_expr(coll_key, x_field),
-                "_y": _axis_expr(coll_key, y_field),
-            }
-        },
-        {"$group": {"_id": {"x": "$_x", "y": "$_y"}, "count": {"$sum": 1}}},
-    ]
+    pipeline = [{"$match": filt}]
+    pipeline.extend(_lookup_stages(coll_key, x_field, y_field))
+    pipeline.extend(
+        [
+            {
+                "$project": {
+                    "_x": _axis_expr(coll_key, x_field),
+                    "_y": _axis_expr(coll_key, y_field),
+                }
+            },
+            {"$group": {"_id": {"x": "$_x", "y": "$_y"}, "count": {"$sum": 1}}},
+        ]
+    )
     cells = []
     for row in coll.aggregate(pipeline):
         gid = row.get("_id") or {}

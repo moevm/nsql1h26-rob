@@ -932,6 +932,8 @@ def list_events(
     doc_id: str | None = Query(None, alias="docId"),
     timestamp_after: str | None = Query(None, alias="timestampAfter"),
     timestamp_before: str | None = Query(None, alias="timestampBefore"),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
     sort_dir: str = Query("asc", alias="sortDir"),
 ):
     filt = events_filter(
@@ -944,6 +946,8 @@ def list_events(
         doc_id=doc_id,
         timestamp_after=timestamp_after,
         timestamp_before=timestamp_before,
+        created_after=created_after,
+        created_before=created_before,
     )
     total = _coll("events").count_documents(filt)
     sd = _mongo_sort_dir(sort_dir)

@@ -12,7 +12,7 @@ import {
 } from '../appConstants';
 import type { EntityKey } from '../crudModals';
 import { sanitizeDecimalTyping, sanitizeNonNegIntTyping, sanitizeSignedIntTyping } from '../coordinateInput';
-import { numOrUndef } from '../entityUtils';
+import { dateInputClass, numOrUndef } from '../entityUtils';
 import { localInputToIso } from '../mongoJson';
 
 type StatsCollection = Exclude<EntityKey, 'files'>;
@@ -34,7 +34,7 @@ type ChartPayload = {
 const LONG_TEXT_AXIS = new Set(['message', 'description', 'comments', 'name']);
 
 const EMPTY_FILTERS: Record<StatsCollection, Record<string, string>> = {
-  groups: { name: '', description: '', status: '' } as Record<string, string>,
+  groups: { name: '', description: '', status: '', created_after: '', created_before: '' },
   robots: {
     name: '',
     model: '',
@@ -44,10 +44,27 @@ const EMPTY_FILTERS: Record<StatsCollection, Record<string, string>> = {
     scan_radius_max: '',
     weight_min: '',
     weight_max: '',
+    created_after: '',
+    created_before: '',
   },
-  tasks: { name: '', group_name: '', type: '', task_status: '' },
-  events: { type: '', message: '', description: '' },
-  obstacles: { name: '', active: '', min_x_gte: '' },
+  tasks: {
+    name: '',
+    group_name: '',
+    type: '',
+    task_status: '',
+    created_after: '',
+    created_before: '',
+  },
+  events: {
+    type: '',
+    message: '',
+    description: '',
+    created_after: '',
+    created_before: '',
+    timestamp_after: '',
+    timestamp_before: '',
+  },
+  obstacles: { name: '', active: '', min_x_gte: '', created_after: '', created_before: '' },
 };
 
 function cellCount(cells: ChartPayload['cells'], x: string, y: string): number {
@@ -105,10 +122,21 @@ export function StatisticsPage() {
     };
   }, [collection]);
 
+  const dateRangeParams = {
+    created_after: localInputToIso(f.created_after),
+    created_before: localInputToIso(f.created_before),
+  };
+
   const buildParams = useCallback((): Record<string, string | number | undefined> => {
     const base = { collection, xField, yField };
     if (collection === 'groups') {
-      return { ...base, name: f.name || undefined, description: f.description || undefined, status: f.status || undefined };
+      return {
+        ...base,
+        name: f.name || undefined,
+        description: f.description || undefined,
+        status: f.status || undefined,
+        ...dateRangeParams,
+      };
     }
     if (collection === 'robots') {
       return {
@@ -121,6 +149,7 @@ export function StatisticsPage() {
         scanRadiusMax: numOrUndef(f.scan_radius_max),
         weightMin: numOrUndef(f.weight_min),
         weightMax: numOrUndef(f.weight_max),
+        ...dateRangeParams,
       };
     }
     if (collection === 'tasks') {
@@ -130,6 +159,7 @@ export function StatisticsPage() {
         groupName: f.group_name || undefined,
         type: f.type || undefined,
         taskStatus: f.task_status || undefined,
+        ...dateRangeParams,
       };
     }
     if (collection === 'events') {
@@ -138,6 +168,9 @@ export function StatisticsPage() {
         type: f.type || undefined,
         message: f.message || undefined,
         description: f.description || undefined,
+        ...dateRangeParams,
+        timestampAfter: localInputToIso(f.timestamp_after),
+        timestampBefore: localInputToIso(f.timestamp_before),
       };
     }
     return {
@@ -145,6 +178,7 @@ export function StatisticsPage() {
       name: f.name || undefined,
       active: f.active === 'true' ? 'true' : f.active === 'false' ? 'false' : undefined,
       minXGte: numOrUndef(f.min_x_gte),
+      ...dateRangeParams,
     };
   }, [collection, f, xField, yField]);
 
@@ -179,7 +213,7 @@ export function StatisticsPage() {
       parts.push('Long text labels are truncated for the heatmap');
     }
     if (collection === 'events' && (xField === 'robotId' || yField === 'robotId' || xField === 'taskId' || yField === 'taskId')) {
-      parts.push('null references appear as (empty)');
+      parts.push('use robotName / taskName axes for readable labels; null refs appear as (empty)');
     }
     if (chart?.axisCap) {
       parts.push(`at most ${chart.axisCap} categories per axis; rest grouped as (other)`);
@@ -346,6 +380,24 @@ export function StatisticsPage() {
                   <span className={FILTER_LBL}>description (filter substring)</span>
                   <input className={FILTER_INP} value={f.description} onChange={(e) => setF('description', e.target.value)} />
                 </label>
+                <label className="block">
+                  <span className={FILTER_LBL}>timestamp_after</span>
+                  <input
+                    type="datetime-local"
+                    className={dateInputClass(f.timestamp_after)}
+                    value={f.timestamp_after}
+                    onChange={(e) => setF('timestamp_after', e.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className={FILTER_LBL}>timestamp_before</span>
+                  <input
+                    type="datetime-local"
+                    className={dateInputClass(f.timestamp_before)}
+                    value={f.timestamp_before}
+                    onChange={(e) => setF('timestamp_before', e.target.value)}
+                  />
+                </label>
               </>
             )}
             {collection === 'obstacles' && (
@@ -364,6 +416,24 @@ export function StatisticsPage() {
                 </label>
               </>
             )}
+            <label className="block">
+              <span className={FILTER_LBL}>created_after</span>
+              <input
+                type="datetime-local"
+                className={dateInputClass(f.created_after)}
+                value={f.created_after}
+                onChange={(e) => setF('created_after', e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className={FILTER_LBL}>created_before</span>
+              <input
+                type="datetime-local"
+                className={dateInputClass(f.created_before)}
+                value={f.created_before}
+                onChange={(e) => setF('created_before', e.target.value)}
+              />
+            </label>
           </div>
         </div>
       </section>

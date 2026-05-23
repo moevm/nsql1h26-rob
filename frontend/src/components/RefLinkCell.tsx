@@ -11,17 +11,19 @@ export function RefLinkCell({
   columnKey,
   value,
   goToRef,
+  displayLabel,
 }: {
   columnKey: string;
   value: unknown;
   goToRef: (target: EntityKey, docId: string) => void;
+  displayLabel?: string;
 }) {
   const target = refEntityForFieldKey(columnKey);
   const id = refId(value);
   if (!target || !id || !isObjectIdHex(id)) {
     return <span className="text-slate-300">{formatTableCell(value, columnKey)}</span>;
   }
-  const label = shortHexId(id);
+  const label = (displayLabel && displayLabel.trim()) || shortHexId(id);
   return (
     <button type="button" className={`text-left align-baseline ${refLinkUnderlineClass}`} onClick={() => goToRef(target, id)}>
       {label}
