@@ -42,7 +42,7 @@
     "type": "info",
     "message": "Intermediate waypoint has been reached.",
     "description": "Cargo unit reported position lock before the final approach to the drop lane.",
-    "target": {"x": 100, "y": 50},
+    "target": {"x": 36, "y": 30},
     "timestamp": {"$date": "2026-03-08T07:30:00.000Z"}
   },
   {
@@ -100,5 +100,83 @@
     "description": "Transient peak during radius sweep on lab firmware.",
     "metric": {"key": "cpu_pct", "from": 34, "to": 78},
     "timestamp": {"$date": "2026-03-16T10:08:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439051"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439022"},
+    "taskId": null,
+    "type": "battery_low",
+    "message": "Battery state of charge is below 25%.",
+    "description": "Alpha-02 reserve unit flagged during dock idle.",
+    "metric": {"key": "battery_percent", "from": 26, "to": 21},
+    "timestamp": {"$date": "2026-03-16T14:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439052"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439028"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439031"},
+    "type": "battery_low",
+    "message": "Battery state of charge is below 25%.",
+    "description": "Same threshold message as Alpha-01 for grouped stats.",
+    "metric": {"key": "battery_percent", "from": 24, "to": 19},
+    "timestamp": {"$date": "2026-03-16T14:30:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439053"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439021"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439031"},
+    "type": "task_complete",
+    "message": "Patrol segment complete.",
+    "description": "North patrol leg finished without incidents.",
+    "timestamp": {"$date": "2026-03-16T15:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439054"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439026"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439034"},
+    "type": "task_complete",
+    "message": "Patrol segment complete.",
+    "description": "Dock relay loop closed on schedule.",
+    "timestamp": {"$date": "2026-03-16T15:15:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439055"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439025"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439035"},
+    "type": "warning",
+    "message": "Obstacle detected in sector 3.",
+    "description": "Night Watch repeated warning near south pit.",
+    "position": {"x": 10, "y": 32},
+    "timestamp": {"$date": "2026-03-16T16:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439056"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439029"},
+    "taskId": null,
+    "type": "error",
+    "message": "Motor driver fault on left track.",
+    "description": "Scout-02 marked offline after fault.",
+    "timestamp": {"$date": "2026-03-16T16:30:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439057"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439023"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439032"},
+    "type": "track_point",
+    "message": "Track point at grid (20, 31).",
+    "description": "Scout path sample with explicit message for charts.",
+    "position": {"x": 20, "y": 31},
+    "prevPosition": {"x": 20, "y": 30},
+    "speed": 0.6,
+    "timestamp": {"$date": "2026-03-16T17:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439058"},
+    "robotId": {"$oid": "507f1f77bcf86cd799439027"},
+    "taskId": {"$oid": "507f1f77bcf86cd799439037"},
+    "type": "task_failed",
+    "message": "Custom script aborted: timeout.",
+    "description": "Alpha sweep micro failed in lab.",
+    "timestamp": {"$date": "2026-03-17T08:00:00.000Z"}
   }
 ]

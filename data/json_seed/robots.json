@@ -70,7 +70,7 @@
     "model": "MiR200",
     "groupId": {"$oid": "507f1f77bcf86cd799439015"},
     "groupName": "Dock Crew",
-    "coordinates": {"x": 45, "y": 5},
+    "coordinates": {"x": 36, "y": 10},
     "scanRadius": 30.0,
     "weight": 65,
     "comments": "Line haul between dock doors A and B.",
@@ -89,5 +89,33 @@
     "comments": "Firmware soak-test loops with frequent reboot.",
     "createdAt": {"$date": "2026-02-18T09:00:00.000Z"},
     "updatedAt": {"$date": "2026-03-15T14:20:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439028"},
+    "name": "Alpha-03",
+    "model": "Husky A200",
+    "groupId": {"$oid": "507f1f77bcf86cd799439011"},
+    "groupName": "Alpha Team",
+    "coordinates": {"x": 14, "y": 10},
+    "scanRadius": 50.0,
+    "weight": 52,
+    "robotStatus": "online",
+    "comments": "Third Alpha line unit; mirrors Alpha-01 scan profile for fleet stats demos.",
+    "createdAt": {"$date": "2026-02-20T10:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-16T09:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "507f1f77bcf86cd799439029"},
+    "name": "Scout-02",
+    "model": "Clearpath Jackal",
+    "groupId": {"$oid": "507f1f77bcf86cd799439012"},
+    "groupName": "Scout Wing",
+    "coordinates": {"x": 24, "y": 33},
+    "scanRadius": 20.0,
+    "weight": 17,
+    "robotStatus": "offline",
+    "comments": "Paired with Scout-01 for Jackal model distribution charts.",
+    "createdAt": {"$date": "2026-02-22T11:00:00.000Z"},
+    "updatedAt": {"$date": "2026-03-16T11:00:00.000Z"}
   }
 ]

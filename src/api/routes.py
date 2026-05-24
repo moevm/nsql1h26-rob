@@ -6,13 +6,21 @@ from datetime import datetime
 from io import BytesIO
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi import UploadFile, File
 from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError, OperationFailure
 
+from src.api.list_filters import (
+    events_filter,
+    gridfs_files_filter,
+    groups_filter,
+    obstacles_filter,
+    robots_filter,
+    tasks_filter,
+)
 from src.api.mongo_http import body_to_bson, doc_to_jsonable, icontains, mongo_validation_error, oid_or_400, parse_dt, utcnow
 from src.api.auth import authenticate, issue_token
 from src.db.database import get_db
@@ -22,6 +30,10 @@ router = APIRouter()
 
 _MAX_LIMIT = 500
 _DEFAULT_LIMIT = 200
+
+
+def _list_response(items: list, total: int) -> JSONResponse:
+    return JSONResponse(content=items, headers={"X-Total-Count": str(total)})
 
 def _coll(name):
     return get_db()[name]
@@ -167,42 +179,27 @@ def auth_login(body=Body(...)):
 def list_groups(
     skip: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    name: str | None = Query(None, description="Подстрока в name (без учёта регистра)"),
-    description: str | None = Query(None, description="Подстрока в description (без учёта регистра)"),
-    status: str | None = Query(None, description="Точное значение status"),
-    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    name: str | None = Query(None),
+    description: str | None = Query(None),
+    status: str | None = Query(None),
+    doc_id: str | None = Query(None, alias="docId"),
     created_after: str | None = Query(None),
     created_before: str | None = Query(None),
     updated_after: str | None = Query(None),
     updated_before: str | None = Query(None),
     sort_dir: str = Query("asc", alias="sortDir"),
 ):
-    q = {"$and": []}
-    for cond in (
-        icontains("name", name),
-        icontains("description", description),
-    ):
-        if cond:
-            q["$and"].append(cond)
-    if doc_id and doc_id.strip():
-        q["$and"].append({"_id": oid_or_400(doc_id.strip())})
-    if status:
-        q["$and"].append({"status": status})
-    ca, cb = parse_dt(created_after), parse_dt(created_before)
-    if ca:
-        q["$and"].append({"createdAt": {"$gte": ca}})
-    if cb:
-        q["$and"].append({"createdAt": {"$lte": cb}})
-    ua, ub = parse_dt(updated_after), parse_dt(updated_before)
-    if ua:
-        q["$and"].append({"updatedAt": {"$gte": ua}})
-    if ub:
-        q["$and"].append({"updatedAt": {"$lte": ub}})
-    if not q["$and"]:
-        del q["$and"]
-        filt = {}
-    else:
-        filt = q
+    filt = groups_filter(
+        name=name,
+        description=description,
+        status=status,
+        doc_id=doc_id,
+        created_after=created_after,
+        created_before=created_before,
+        updated_after=updated_after,
+        updated_before=updated_before,
+    )
+    total = _coll("groups").count_documents(filt)
     sd = _mongo_sort_dir(sort_dir)
     pipeline = [
         {"$match": filt},
@@ -212,7 +209,8 @@ def list_groups(
         _group_robots_lookup_stage(),
     ]
     cur = _coll("groups").aggregate(pipeline)
-    return [_embed_group_robots_defaults(doc_to_jsonable(d)) for d in cur]
+    items = [_embed_group_robots_defaults(doc_to_jsonable(d)) for d in cur]
+    return _list_response(items, total)
 
 
 @router.get("/api/groups/{doc_id}", tags=["entities"])
@@ -296,7 +294,7 @@ def list_robots(
     group_name: str | None = Query(None, alias="groupName"),
     comments: str | None = Query(None),
     group_id: str | None = Query(None, alias="groupId"),
-    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    doc_id: str | None = Query(None, alias="docId"),
     scan_radius_min: float | None = Query(None, alias="scanRadiusMin"),
     scan_radius_max: float | None = Query(None, alias="scanRadiusMax"),
     weight_min: int | None = Query(None, alias="weightMin"),
@@ -307,47 +305,27 @@ def list_robots(
     updated_before: str | None = Query(None),
     sort_dir: str = Query("asc", alias="sortDir"),
 ):
-    parts = []
-    for c in (
-        icontains("name", name),
-        icontains("model", model),
-        icontains("groupName", group_name),
-        icontains("comments", comments),
-    ):
-        if c:
-            parts.append(c)
-    if doc_id and doc_id.strip():
-        parts.append({"_id": oid_or_400(doc_id.strip())})
-    if group_id:
-        parts.append({"groupId": oid_or_400(group_id)})
-    if scan_radius_min is not None or scan_radius_max is not None:
-        r = {}
-        if scan_radius_min is not None:
-            r["$gte"] = scan_radius_min
-        if scan_radius_max is not None:
-            r["$lte"] = scan_radius_max
-        parts.append({"scanRadius": r})
-    if weight_min is not None or weight_max is not None:
-        w = {}
-        if weight_min is not None:
-            w["$gte"] = weight_min
-        if weight_max is not None:
-            w["$lte"] = weight_max
-        parts.append({"weight": w})
-    ca, cb = parse_dt(created_after), parse_dt(created_before)
-    if ca:
-        parts.append({"createdAt": {"$gte": ca}})
-    if cb:
-        parts.append({"createdAt": {"$lte": cb}})
-    ua, ub = parse_dt(updated_after), parse_dt(updated_before)
-    if ua:
-        parts.append({"updatedAt": {"$gte": ua}})
-    if ub:
-        parts.append({"updatedAt": {"$lte": ub}})
-    filt = {"$and": parts} if parts else {}
+    filt = robots_filter(
+        name=name,
+        model=model,
+        group_name=group_name,
+        comments=comments,
+        group_id=group_id,
+        doc_id=doc_id,
+        scan_radius_min=scan_radius_min,
+        scan_radius_max=scan_radius_max,
+        weight_min=weight_min,
+        weight_max=weight_max,
+        created_after=created_after,
+        created_before=created_before,
+        updated_after=updated_after,
+        updated_before=updated_before,
+    )
+    total = _coll("robots").count_documents(filt)
     sd = _mongo_sort_dir(sort_dir)
     cur = _coll("robots").find(filt).sort("createdAt", sd).skip(skip).limit(limit)
-    return [_robot_to_jsonable(d) for d in cur]
+    items = [_robot_to_jsonable(d) for d in cur]
+    return _list_response(items, total)
 
 
 @router.post("/api/gridfs/upload", tags=["gridfs"])
@@ -578,8 +556,8 @@ def list_tasks(
     task_type: str | None = Query(None, alias="type"),
     task_status: str | None = Query(None, alias="taskStatus"),
     group_id: str | None = Query(None, alias="groupId"),
-    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
-    robot_id: str | None = Query(None, alias="robotId", description="Любой робот в executionRobots"),
+    doc_id: str | None = Query(None, alias="docId"),
+    robot_id: str | None = Query(None, alias="robotId"),
     start_after: str | None = Query(None, alias="startTimeAfter"),
     start_before: str | None = Query(None, alias="startTimeBefore"),
     end_after: str | None = Query(None, alias="endTimeAfter"),
@@ -587,16 +565,14 @@ def list_tasks(
     route_point: str | None = Query(
         None,
         alias="route",
-        description="Одна или несколько точек: 'x,y' или 'x,y; x,y; ...' (AND по всем точкам). Поиск идёт и по taskDetails.route, и по plannedRoute.points.",
     ),
-    radius_min: int | None = Query(None, alias="radiusMin", description="taskDetails.radius >= ... (для scanRadius)"),
-    radius_max: int | None = Query(None, alias="radiusMax", description="taskDetails.radius <= ... (для scanRadius)"),
+    radius_min: int | None = Query(None, alias="radiusMin"),
+    radius_max: int | None = Query(None, alias="radiusMax"),
     radius_m_min: int | None = Query(None, alias="radiusMMin", include_in_schema=False),
     radius_m_max: int | None = Query(None, alias="radiusMMax", include_in_schema=False),
     image_filename: str | None = Query(
         None,
         alias="imageFilename",
-        description="Имя картинки (fs.files.filename), связанной с visual_capture событиями этой task",
     ),
     created_after: str | None = Query(None),
     created_before: str | None = Query(None),
@@ -604,76 +580,38 @@ def list_tasks(
     updated_before: str | None = Query(None),
     sort_dir: str = Query("asc", alias="sortDir"),
 ):
-    parts = []
-    for c in (icontains("name", name), icontains("groupName", group_name)):
-        if c:
-            parts.append(c)
-    if task_type:
-        parts.append({"type": task_type})
-    if task_status:
-        parts.append({"taskStatus": task_status})
-    if doc_id and doc_id.strip():
-        parts.append({"_id": oid_or_400(doc_id.strip())})
-    if group_id:
-        parts.append({"groupId": oid_or_400(group_id)})
-    if robot_id:
-        rid = oid_or_400(robot_id)
-        parts.append({"executionRobots": {"$elemMatch": {"robotId": rid}}})
-
-    sa, sb = parse_dt(start_after), parse_dt(start_before)
-    if sa:
-        parts.append({"startTime": {"$gte": sa}})
-    if sb:
-        parts.append({"startTime": {"$lte": sb}})
-    ea, eb = parse_dt(end_after), parse_dt(end_before)
-    if ea:
-        parts.append({"endTime": {"$gte": ea}})
-    if eb:
-        parts.append({"endTime": {"$lte": eb}})
-
-    if route_point and route_point.strip():
-        pairs = re.findall(r"(\d+)\s*,\s*(\d+)", route_point)
-        for xs, ys in pairs:
-            x, y = int(xs), int(ys)
-            parts.append(
-                {
-                    "$or": [
-                        {"taskDetails.route": {"$elemMatch": {"x": x, "y": y}}},
-                        {"plannedRoute.points": [x, y]},
-                    ]
-                }
-            )
-
     rmin = radius_min if radius_min is not None else radius_m_min
     rmax = radius_max if radius_max is not None else radius_m_max
-    if rmin is not None or rmax is not None:
-        r = {}
-        if rmin is not None:
-            r["$gte"] = rmin
-        if rmax is not None:
-            r["$lte"] = rmax
-        parts.append({"taskDetails.radius": r})
-
-    ca, cb = parse_dt(created_after), parse_dt(created_before)
-    if ca:
-        parts.append({"createdAt": {"$gte": ca}})
-    if cb:
-        parts.append({"createdAt": {"$lte": cb}})
-    ua, ub = parse_dt(updated_after), parse_dt(updated_before)
-    if ua:
-        parts.append({"updatedAt": {"$gte": ua}})
-    if ub:
-        parts.append({"updatedAt": {"$lte": ub}})
-
-    base_filt = {"$and": parts} if parts else {}
+    base_filt = tasks_filter(
+        name=name,
+        group_name=group_name,
+        task_type=task_type,
+        task_status=task_status,
+        group_id=group_id,
+        doc_id=doc_id,
+        robot_id=robot_id,
+        start_after=start_after,
+        start_before=start_before,
+        end_after=end_after,
+        end_before=end_before,
+        route_point=route_point,
+        radius_min=rmin,
+        radius_max=rmax,
+        created_after=created_after,
+        created_before=created_before,
+        updated_after=updated_after,
+        updated_before=updated_before,
+    )
     sd = _mongo_sort_dir(sort_dir)
     sort_created_agg = 1 if sd == ASCENDING else -1
     if not image_filename or not image_filename.strip():
+        total = _coll("tasks").count_documents(base_filt)
         cur = _coll("tasks").find(base_filt).sort("createdAt", sd).skip(skip).limit(limit)
-        return [doc_to_jsonable(d) for d in cur]
+        items = [doc_to_jsonable(d) for d in cur]
+        return _list_response(items, total)
 
     rx = re.escape(image_filename.strip())
-    pipeline = [
+    base_pipeline = [
         {"$match": base_filt},
         {
             "$lookup": {
@@ -698,13 +636,18 @@ def list_tasks(
         },
         {"$unwind": "$_files"},
         {"$match": {"_files.filename": {"$regex": rx, "$options": "i"}}},
+    ]
+    count_rows = list(_coll("tasks").aggregate(base_pipeline + [{"$count": "n"}]))
+    total = int(count_rows[0]["n"]) if count_rows else 0
+    pipeline = base_pipeline + [
         {"$sort": {"createdAt": sort_created_agg}},
         {"$skip": skip},
         {"$limit": limit},
         {"$unset": ["_evs", "_files"]},
     ]
     cur = _coll("tasks").aggregate(pipeline)
-    return [doc_to_jsonable(d) for d in cur]
+    items = [doc_to_jsonable(d) for d in cur]
+    return _list_response(items, total)
 
 
 @router.get("/api/tasks/{task_id}/visual-logs", tags=["entities"])
@@ -986,34 +929,31 @@ def list_events(
     robot_id: str | None = Query(None, alias="robotId"),
     task_id: str | None = Query(None, alias="taskId"),
     grid_fs_file_id: str | None = Query(None, alias="gridFsFileId"),
-    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    doc_id: str | None = Query(None, alias="docId"),
     timestamp_after: str | None = Query(None, alias="timestampAfter"),
     timestamp_before: str | None = Query(None, alias="timestampBefore"),
+    created_after: str | None = Query(None),
+    created_before: str | None = Query(None),
     sort_dir: str = Query("asc", alias="sortDir"),
 ):
-    parts = []
-    if event_type:
-        parts.append({"type": event_type})
-    for c in (icontains("message", message), icontains("description", description)):
-        if c:
-            parts.append(c)
-    if doc_id and doc_id.strip():
-        parts.append({"_id": oid_or_400(doc_id.strip())})
-    if robot_id:
-        parts.append({"robotId": oid_or_400(robot_id)})
-    if task_id:
-        parts.append({"taskId": oid_or_400(task_id)})
-    if grid_fs_file_id and grid_fs_file_id.strip():
-        parts.append({"gridFsFileId": oid_or_400(grid_fs_file_id.strip())})
-    ta, tb = parse_dt(timestamp_after), parse_dt(timestamp_before)
-    if ta:
-        parts.append({"timestamp": {"$gte": ta}})
-    if tb:
-        parts.append({"timestamp": {"$lte": tb}})
-    filt = {"$and": parts} if parts else {}
+    filt = events_filter(
+        event_type=event_type,
+        message=message,
+        description=description,
+        robot_id=robot_id,
+        task_id=task_id,
+        grid_fs_file_id=grid_fs_file_id,
+        doc_id=doc_id,
+        timestamp_after=timestamp_after,
+        timestamp_before=timestamp_before,
+        created_after=created_after,
+        created_before=created_before,
+    )
+    total = _coll("events").count_documents(filt)
     sd = _mongo_sort_dir(sort_dir)
     cur = _coll("events").find(filt).sort("timestamp", sd).skip(skip).limit(limit)
-    return [doc_to_jsonable(d) for d in cur]
+    items = [doc_to_jsonable(d) for d in cur]
+    return _list_response(items, total)
 
 
 @router.get("/api/events/{doc_id}", tags=["entities"])
@@ -1135,11 +1075,10 @@ def list_obstacles(
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
     name: str | None = Query(None),
     active: bool | None = Query(None),
-    doc_id: str | None = Query(None, alias="docId", description="Точное совпадение _id"),
+    doc_id: str | None = Query(None, alias="docId"),
     points_q: str | None = Query(
         None,
         alias="pointsQ",
-        description="Подстрока в текстовом представлении массива points (поиск по координатам)",
     ),
     min_x_gte: int | None = Query(None, alias="minXGte"),
     max_x_lte: int | None = Query(None, alias="maxXLte"),
@@ -1151,54 +1090,25 @@ def list_obstacles(
     updated_before: str | None = Query(None),
     sort_dir: str = Query("asc", alias="sortDir"),
 ):
-    parts = []
-    if doc_id and doc_id.strip():
-        parts.append({"_id": oid_or_400(doc_id.strip())})
-    c = icontains("name", name)
-    if c:
-        parts.append(c)
-    if points_q and points_q.strip():
-        raw = points_q.strip()
-        tokens = [t.strip() for t in re.split(r"[;\n\r]+", raw) if t and t.strip()]
-        if tokens:
-            ors = []
-            for tok in tokens:
-                ors.append(
-                    {
-                        "$expr": {
-                            "$regexMatch": {
-                                "input": _expr_obstacle_points_flat_text(),
-                                "regex": re.escape(tok),
-                                "options": "i",
-                            }
-                        }
-                    }
-                )
-            parts.append({"$or": ors} if len(ors) > 1 else ors[0])
-    if active is not None:
-        parts.append({"active": active})
-    if min_x_gte is not None:
-        parts.append({"minX": {"$gte": min_x_gte}})
-    if max_x_lte is not None:
-        parts.append({"maxX": {"$lte": max_x_lte}})
-    if min_y_gte is not None:
-        parts.append({"minY": {"$gte": min_y_gte}})
-    if max_y_lte is not None:
-        parts.append({"maxY": {"$lte": max_y_lte}})
-    ca, cb = parse_dt(created_after), parse_dt(created_before)
-    if ca:
-        parts.append({"createdAt": {"$gte": ca}})
-    if cb:
-        parts.append({"createdAt": {"$lte": cb}})
-    ua, ub = parse_dt(updated_after), parse_dt(updated_before)
-    if ua:
-        parts.append({"updatedAt": {"$gte": ua}})
-    if ub:
-        parts.append({"updatedAt": {"$lte": ub}})
-    filt = {"$and": parts} if parts else {}
+    filt = obstacles_filter(
+        name=name,
+        active=active,
+        doc_id=doc_id,
+        points_q=points_q,
+        min_x_gte=min_x_gte,
+        max_x_lte=max_x_lte,
+        min_y_gte=min_y_gte,
+        max_y_lte=max_y_lte,
+        created_after=created_after,
+        created_before=created_before,
+        updated_after=updated_after,
+        updated_before=updated_before,
+    )
+    total = _coll("obstacles").count_documents(filt)
     sd = _mongo_sort_dir(sort_dir)
     cur = _coll("obstacles").find(filt).sort("createdAt", sd).skip(skip).limit(limit)
-    return [doc_to_jsonable(d) for d in cur]
+    items = [doc_to_jsonable(d) for d in cur]
+    return _list_response(items, total)
 
 
 @router.get("/api/obstacles/{doc_id}", tags=["entities"])
@@ -1303,39 +1213,30 @@ def delete_obstacle(doc_id):
 def list_gridfs_files(
     skip: int = Query(0, ge=0),
     limit: int = Query(_DEFAULT_LIMIT, ge=1, le=_MAX_LIMIT),
-    filename: str | None = Query(None, description="Substring in filename (case-insensitive)"),
-    doc_id: str | None = Query(None, alias="docId", description="Exact fs.files _id"),
+    filename: str | None = Query(None),
+    doc_id: str | None = Query(None, alias="docId"),
     upload_after: str | None = Query(None),
     upload_before: str | None = Query(None),
-    metadata: str | None = Query(None, description="Substring search over metadata (best-effort, post-filtered)"),
+    metadata: str | None = Query(None),
     length_min: int | None = Query(None, alias="lengthMin"),
     length_max: int | None = Query(None, alias="lengthMax"),
     sort_dir: str = Query("desc", alias="sortDir"),
 ):
-    q = {"$and": []}
-    if doc_id and doc_id.strip():
-        q["$and"].append({"_id": oid_or_400(doc_id.strip())})
-    if filename and filename.strip():
-        q["$and"].append({"filename": {"$regex": re.escape(filename.strip()), "$options": "i"}})
-    ua, ub = parse_dt(upload_after), parse_dt(upload_before)
-    if ua:
-        q["$and"].append({"uploadDate": {"$gte": ua}})
-    if ub:
-        q["$and"].append({"uploadDate": {"$lte": ub}})
-    if length_min is not None:
-        q["$and"].append({"length": {"$gte": int(length_min)}})
-    if length_max is not None:
-        q["$and"].append({"length": {"$lte": int(length_max)}})
-    if not q["$and"]:
-        del q["$and"]
-        filt = {}
-    else:
-        filt = q
+    filt = gridfs_files_filter(
+        filename=filename,
+        doc_id=doc_id,
+        upload_after=upload_after,
+        upload_before=upload_before,
+        length_min=length_min,
+        length_max=length_max,
+    )
+    total = _files_coll().count_documents(filt)
     sd = _mongo_sort_dir(sort_dir)
     cur = _files_coll().find(filt).sort("uploadDate", sd).skip(skip).limit(limit)
     docs = [doc_to_jsonable(d) for d in cur]
     if metadata and metadata.strip():
         needle = metadata.strip().lower()
+
         def _meta_str(x):
             try:
                 return json.dumps(x or {}, ensure_ascii=False, sort_keys=True).lower()
@@ -1343,8 +1244,9 @@ def list_gridfs_files(
                 return str(x or "").lower()
 
         docs = [d for d in docs if needle in _meta_str((d or {}).get("metadata"))]
+        total = len(docs)
     _attach_linked_task_ids_to_gridfs_docs(docs)
-    return docs
+    return _list_response(docs, total)
 
 
 @router.get("/api/gridfs/files/{file_id}/download", tags=["gridfs"])

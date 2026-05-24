@@ -30,9 +30,9 @@ except ValueError:
 BOT_LOOP_SLEEP_SEC = max(0.15, min(30.0, _loop))
 
 try:
-    _stride = int(os.getenv("BOT_PATH_STRIDE", "4"), 10)
+    _stride = int(os.getenv("BOT_PATH_STRIDE", "2"), 10)
 except ValueError:
-    _stride = 4
+    _stride = 2
 BOT_PATH_STRIDE = max(1, min(32, _stride))
 
 def clean_id(oid):
@@ -61,6 +61,7 @@ class RobotSimulator:
     def __init__(self):
         self.battery_levels = {}
         self.paths = {}
+        self._patrol_idx = {}
         self.session = requests.Session()
         self._offline_rids = set()
 
@@ -156,6 +157,20 @@ class RobotSimulator:
         except Exception:
             pass
 
+    def _patrol_until_active(self, details):
+        until_raw = details.get("until")
+        if not until_raw:
+            return True
+        u_str = iso_datetime_from_api(until_raw)
+        return datetime.now().timestamp() <= datetime.fromisoformat(u_str).timestamp()
+
+    def _patrol_target(self, rid, route):
+        if not route:
+            return None
+        if rid not in self._patrol_idx:
+            self._patrol_idx[rid] = 0
+        return route[self._patrol_idx[rid] % len(route)]
+
     def step(self, robot, task, obstacles):
         rid = clean_id(robot['_id'])
         tid = clean_id(task['_id'])
@@ -175,9 +190,12 @@ class RobotSimulator:
             route = details.get("route") or []
             if not route:
                 return False
-            target = route[(int(time.time()) // 15) % len(route)]
+            if not self._patrol_until_active(details):
+                return True
+            target = self._patrol_target(rid, route)
 
-        if not target: return False
+        if not target:
+            return False
 
         if rid not in self.paths or not self.paths[rid]:
             p = self.get_path(curr_pos, target, obstacles)
@@ -190,7 +208,8 @@ class RobotSimulator:
         else: new_pos = curr_pos
 
         dist = math.hypot(target['x'] - new_pos['x'], target['y'] - new_pos['y'])
-        arrived = dist < 12
+        arrive_thresh = 2 if task['type'] == 'patrol' else 12
+        arrived = dist < arrive_thresh
 
         if task['type'] == "scanRadius" and arrived:
             r = details['radius']
@@ -209,11 +228,17 @@ class RobotSimulator:
 
         self._drain_and_send_telemetry(rid, tid, new_pos)
 
-        if (task['type'] == "moveToTarget" and arrived): return True
+        if task['type'] == "moveToTarget" and arrived:
+            return True
         if task['type'] == "patrol":
-            u_str = iso_datetime_from_api(details["until"])
-            if datetime.now().timestamp() > datetime.fromisoformat(u_str).timestamp():
+            if not self._patrol_until_active(details):
                 return True
+            if arrived:
+                route = details.get("route") or []
+                if route:
+                    self._patrol_idx[rid] = (self._patrol_idx.get(rid, 0) + 1) % len(route)
+                    self.paths.pop(rid, None)
+            return False
         return False
 
     def run(self):

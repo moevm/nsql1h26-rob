@@ -1,4 +1,4 @@
-import { Cpu, LayoutDashboard, Map as MapIcon, Settings } from 'lucide-react';
+import { BarChart3, Cpu, LayoutDashboard, Map as MapIcon, Settings } from 'lucide-react';
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -49,6 +49,10 @@ export function AppShell({
             <NavLink to={ROUTES.dashboard} end className={topNavClass}>
               <LayoutDashboard className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
               Dashboard
+            </NavLink>
+            <NavLink to={ROUTES.statistics} end className={topNavClass}>
+              <BarChart3 className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
+              Statistics
             </NavLink>
             <NavLink to={ROUTES.map} end className={topNavClass}>
               <MapIcon className="w-4 h-4 md:w-5 md:h-5 shrink-0" />

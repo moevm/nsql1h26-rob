@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.routes import router as api_router
+from src.api.stats import router as stats_router
 from src.api.auth import decode_token
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -14,6 +15,7 @@ _ASSETS = _DIST / "assets"
 
 app = FastAPI(title="Robot Mission Control API")
 app.include_router(api_router)
+app.include_router(stats_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +23,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count"],
 )
 
 
@@ -77,7 +80,6 @@ def spa_index():
 
 @app.get("/{full_path:path}")
 def spa_fallback(full_path: str):
-    """React Router: прямой заход или обновление страницы на /dashboard и т.д."""
     if full_path.startswith("api/"):
         return JSONResponse({"detail": "Not Found"}, status_code=404)
     return _spa_index_response()

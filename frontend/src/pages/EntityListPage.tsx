@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Database, Trash2 } from 'lucide-react';
 import { PageJumpInput } from '../components/PageJumpInput';
+import { PageSizeInput } from '../components/PageSizeInput';
 import {
   ENTITY_LABEL,
   LIST_COLS,
@@ -9,15 +10,26 @@ import {
   TASK_TYPES,
   emptyFilters,
   listColumnHeader,
+  listHasRefColumns,
+  refDisplayLabelForColumn,
   refEntityForFieldKey,
+  type RefNameLookup,
 } from '../appConstants';
 import { EntityTabIcon } from '../components/EntityTabIcon';
 import { RefLinkCell } from '../components/RefLinkCell';
 import { isImageFilename } from '../entityUtils';
-import { bsonId, formatTableCell } from '../mongoJson';
+import { bsonId, formatTableCell, refId } from '../mongoJson';
 import { ROUTES } from '../routes/paths';
 import type { EntityKey } from '../crudModals';
 import { useMission } from '../mission/missionContext';
+
+function pickToMap(items: { id: string; name: string }[] | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of items ?? []) {
+    if (item.id) map.set(item.id, item.name);
+  }
+  return map;
+}
 
 export function EntityListPage() {
   const { entity } = useParams();
@@ -32,6 +44,7 @@ export function EntityListPage() {
     loading: boolean;
     rows: Record<string, unknown>[];
     pageSize: number;
+    listTotal: number;
     setFilters: React.Dispatch<React.SetStateAction<ReturnType<typeof emptyFilters>>>;
     err: string | null;
     goToRef: (target: EntityKey, docId: string) => void;
@@ -61,6 +74,12 @@ export function EntityListPage() {
     setMapPlannedPts: React.Dispatch<React.SetStateAction<{ x: number; y: number }[]>>;
     clearMapPickerResume: () => void;
     setMapCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    robotPick?: { id: string; name: string }[];
+    taskPick?: { id: string; name: string }[];
+    groupPick?: { id: string; name: string }[];
+    gridFsFilePick?: { id: string; name: string }[];
+    refShowNames?: boolean;
+    setRefShowNames?: (v: boolean) => void;
   };
 
   const {
@@ -72,6 +91,7 @@ export function EntityListPage() {
     loading,
     rows,
     pageSize,
+    listTotal,
     setFilters,
     err,
     goToRef,
@@ -81,10 +101,30 @@ export function EntityListPage() {
     setMapPlannedPts,
     clearMapPickerResume,
     setMapCreateOpen,
+    robotPick,
+    taskPick,
+    groupPick,
+    gridFsFilePick,
+    refShowNames,
+    setRefShowNames,
   } = m;
+
+  const refLookup: RefNameLookup = useMemo(
+    () => ({
+      groupById: pickToMap(groupPick),
+      robotById: pickToMap(robotPick),
+      taskById: pickToMap(taskPick),
+      fileById: pickToMap(gridFsFilePick),
+    }),
+    [groupPick, robotPick, taskPick, gridFsFilePick],
+  );
+
+  const showRefToggle = listHasRefColumns(tab) && setRefShowNames != null;
 
   const listCols = LIST_COLS[tab];
   const linkCol = LIST_LINK_COL[tab];
+  const totalPages = Math.max(1, Math.ceil(listTotal / pageSize));
+  const onLastPage = pageIndex >= totalPages - 1;
 
   function dataCellClass(col: string) {
     if (col === 'name') {
@@ -124,6 +164,20 @@ export function EntityListPage() {
             <button type="submit" form="entity-list-filter-form" className="text-xs px-2 py-1 rounded bg-[#137fec] text-white font-medium">
               Search
             </button>
+            {showRefToggle && (
+              <button
+                type="button"
+                title="Reference columns: short ObjectId vs linked document name"
+                className={`text-xs px-2 py-1 rounded border font-medium ${
+                  refShowNames
+                    ? 'border-[#137fec] bg-[#137fec]/20 text-[#9ecfff]'
+                    : 'border-slate-600 text-slate-400 hover:bg-slate-800'
+                }`}
+                onClick={() => setRefShowNames(!refShowNames)}
+              >
+                {refShowNames ? 'Names' : 'IDs'}
+              </button>
+            )}
             {tab !== 'files' && (
               <button
                 type="button"
@@ -169,49 +223,41 @@ export function EntityListPage() {
             >
               <ChevronRight className="w-4 h-4 rotate-180" />
             </button>
-            <span className="min-w-[5rem] text-center text-[10px] font-bold px-2 py-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-              Page {pageIndex + 1}
+            <span className="tabular-nums">
+              Page {pageIndex + 1} / {totalPages}
             </span>
             <button
               type="button"
               className="p-1.5 rounded-md bg-slate-800 border border-slate-700 text-slate-400 hover:text-white disabled:opacity-30 transition-all"
-              disabled={loading || rows.length < pageSize}
+              disabled={onLastPage || loading}
               onClick={() => setPageIndex(pageIndex + 1)}
               title="Next page"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
-          </div>
-          <div className="flex items-center gap-2">
             <label className="flex items-center gap-1 text-xs text-slate-500">
-              page
+              go
               <PageJumpInput
                 pageIndex={pageIndex}
+                totalPages={totalPages}
+                disabled={loading}
                 onCommit={(idx) => setPageIndex(idx)}
                 className="w-16 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-200"
               />
             </label>
             <label className="flex items-center gap-1 text-xs text-slate-500">
               per_page
-              <select
-                className="bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-200"
-                value={String(pageSize)}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  const safe = Number.isFinite(n) ? Math.min(Math.max(Math.floor(n), 1), 100) : 10;
+              <PageSizeInput
+                pageSize={pageSize}
+                onCommit={(safe) => {
                   setFilters((prev) => ({
                     ...prev,
                     [tab]: { ...prev[tab], limit: String(safe), skip: '0' },
                   }));
                   bump();
                 }}
-              >
-                {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+                className="w-16 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-slate-200"
+              />
             </label>
           </div>
         </div>
@@ -227,7 +273,7 @@ export function EntityListPage() {
               <h3 className="font-bold text-sm text-slate-100 truncate">{ENTITY_LABEL[tab]}</h3>
             </div>
             <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 shrink-0">
-              {loading ? 'Loading…' : `${rows.length} record${rows.length === 1 ? '' : 's'}`}
+              {loading ? 'Loading…' : `${listTotal} total · showing ${rows.length} on this page`}
             </span>
           </div>
           <div className="flex-1 overflow-x-auto custom-scrollbar">
@@ -301,9 +347,12 @@ export function EntityListPage() {
                           );
                         }
                         if (refEntityForFieldKey(c)) {
+                          const rid = refId(row[c]);
+                          const displayLabel =
+                            refShowNames && rid ? refDisplayLabelForColumn(c, rid, refLookup) : undefined;
                           return (
                             <td key={c} className={dataCellClass(c)} onClick={(e) => e.stopPropagation()}>
-                              <RefLinkCell columnKey={c} value={row[c]} goToRef={goToRef} />
+                              <RefLinkCell columnKey={c} value={row[c]} goToRef={goToRef} displayLabel={displayLabel} />
                             </td>
                           );
                         }
