@@ -23,6 +23,18 @@ import { ROUTES } from '../routes/paths';
 import type { EntityKey } from '../crudModals';
 import { useMission } from '../mission/missionContext';
 
+
+const ENTITY_DESCRIPTIONS: Record<string, string> = {
+  robots: "Manage and monitor your robots, view statuses, and their parameters.",
+  groups: "Organize robots into teams and manage group settings.",
+  tasks: "Track mission progress and dispatch new commands.",
+  obstacles: "Define and set physical barriers for robot navigation.",
+  files: "Browse visual camera-captured data.",
+  events: "Review system logs, alerts, and tracks history.",
+  default: "Browse and manage documents in this collection."
+};
+
+
 function pickToMap(items: { id: string; name: string }[] | undefined): Map<string, string> {
   const map = new Map<string, string>();
   for (const item of items ?? []) {
@@ -140,7 +152,9 @@ export function EntityListPage() {
           <EntityTabIcon tab={tab} size="lg" className="text-[#137fec] shrink-0 mt-0.5" />
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-slate-100">{ENTITY_LABEL[tab]}</h2>
-            <p className="text-slate-500 text-xs mt-0.5">Browse and manage documents in this collection.</p>
+            <p className="text-slate-500 text-xs mt-0.5">
+              {ENTITY_DESCRIPTIONS[tab] || ENTITY_DESCRIPTIONS.default}
+            </p>
           </div>
         </div>
       </div>

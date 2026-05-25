@@ -926,7 +926,7 @@ export function MapPage() {
                     onOpen={() => {
                       const id = bsonId(mapView.selected as Record<string, unknown>);
                       if (!id) return;
-                      (navigate as (p: string) => void)(ROUTES.entityDetail('robots', id));
+                      window.open(ROUTES.entityDetail('robots', id), '_blank');
                       (bump as () => void)();
                     }}
                   />
@@ -952,7 +952,7 @@ export function MapPage() {
                           onOpen={() => {
                             const id = mapSelectedTaskId;
                             if (!id) return;
-                            (navigate as (p: string) => void)(ROUTES.entityDetail('tasks', id));
+                             window.open(ROUTES.entityDetail('tasks', id), '_blank');
                             (bump as () => void)();
                           }}
                         />
@@ -976,7 +976,7 @@ export function MapPage() {
                           disabledReason={oid ? undefined : 'No id for this obstacle.'}
                           onOpen={() => {
                             if (!oid) return;
-                            (navigate as (p: string) => void)(ROUTES.entityDetail('obstacles', oid));
+                            window.open(ROUTES.entityDetail('obstacles', oid), '_blank');
                             (bump as () => void)();
                           }}
                         />
