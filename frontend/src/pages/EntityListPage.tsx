@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronRight, Database, Trash2 } from 'lucide-react';
 import { PageJumpInput } from '../components/PageJumpInput';
@@ -144,6 +144,12 @@ export function EntityListPage() {
     }
     return 'px-3 py-2.5 align-top text-slate-300 max-w-[14rem] break-words';
   }
+
+  useEffect(() => {
+    if (tab && ENTITY_LABEL[tab]) {
+      document.title = `${ENTITY_LABEL[tab]} | Robot Mission Control`;
+    }
+  }, [tab]);
 
   return (
     <>

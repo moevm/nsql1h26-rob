@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapAxesOverlay } from '../components/MapAxesOverlay';
 import { MapRecordTitleNav } from '../components/MapRecordTitleNav';
 import { MapRobotNavIcon } from '../components/MapRobotNavIcon';
@@ -98,6 +98,10 @@ export function MapPage() {
 
   const hasTaskMapPickerResume = Boolean(mapPickerResume);
   const hasObstacleMapPickerResume = Boolean(mapObstaclePickerResume);
+
+  useEffect(() => {
+    document.title = "Interactive Map | Robot Mission Control";
+  }, []);
 
   return (
     <section className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
