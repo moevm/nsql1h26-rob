@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -72,6 +72,11 @@ export function DashboardPage() {
     bump: () => void;
     goToRef: (target: EntityKey, docId: string) => void;
   };
+
+  useEffect(() => {
+    document.title = "Dashboard | Robot Mission Control";
+  }, []);
+  
 
   return (
     <div className="space-y-6">

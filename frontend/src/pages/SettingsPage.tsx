@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ENTITY_LABEL } from '../appConstants';
 import { apiAppExport, apiAppImport } from '../apiCrud';
 import type { EntityKey } from '../crudModals';
@@ -41,6 +41,11 @@ export function SettingsPage() {
     bump: () => void;
   };
   const { userRole, ioBusy, setIoBusy, ioMsg, setIoMsg, bump } = m;
+
+  useEffect(() => {
+        document.title = "Settings | Robot Mission Control";
+      }, []);
+  
 
   return (
     <section className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 space-y-3 max-w-xl">

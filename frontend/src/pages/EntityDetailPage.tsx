@@ -43,7 +43,7 @@ export function EntityDetailPage() {
   const [eventDescriptionDraft, setEventDescriptionDraft] = useState('');
   const [eventDescSaving, setEventDescSaving] = useState(false);
   const [eventDescErr, setEventDescErr] = useState<string | null>(null);
-
+  
   useEffect(() => {
     if (tab !== 'tasks' || !entId?.trim()) {
       setTaskVisualLogs(null);
@@ -117,6 +117,16 @@ export function EntityDetailPage() {
   }, [detailDoc, subtitleKey, tab]);
 
   const fileDownloadId = tab === 'files' && detailDoc ? bsonId(detailDoc) : null;
+
+  useEffect(() => {
+    if (detailLoading) {
+      document.title = "Loading... | Robot Mission Control";
+    } else if (detailDoc) {
+      document.title = `${cardTitle} (${ENTITY_LABEL[tab]}) | Robot Mission Control`;
+    } else {
+      document.title = "Detail | Robot Mission Control";
+    }
+  }, [cardTitle, tab, detailLoading, detailDoc]);
 
   return (
     <div className="space-y-6">

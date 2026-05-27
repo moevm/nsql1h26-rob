@@ -221,6 +221,10 @@ export function StatisticsPage() {
     return parts.length ? parts.join('; ') + '.' : null;
   }, [collection, xField, yField, chart?.axisCap]);
 
+  useEffect(() => {
+      document.title = "Statistics | Robot Mission Control";
+    }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-3">
